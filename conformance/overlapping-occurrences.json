@@ -1,0 +1,19 @@
+{
+  "about": "Occurrences are counted at every start position.",
+  "items": [
+    {
+      "id": "c-1",
+      "kind": "comment",
+      "state": "live",
+      "thread": "open",
+      "anchor": "ambiguous"
+    }
+  ],
+  "diagnostics": [
+    {
+      "line": 3,
+      "code": "ambiguous",
+      "id": "c-1"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+[package]
+name = "endmark-core"
+description = "Reader for Endmark, a collaboration layer for Markdown: scanner, records, state and anchoring"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["commonmark"]
+# Cross-checks every record against CommonMark block structure (the `visible-record` finding).
+commonmark = ["dep:pulldown-cmark"]
+
+[dependencies]
+pulldown-cmark = { version = "0.13", default-features = false, optional = true }

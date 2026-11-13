@@ -1,0 +1,13 @@
+{
+  "about": "A backtick line with a backtick in its info string does not open a body fence, so the record after it is found.",
+  "items": [
+    {
+      "id": "c-1",
+      "kind": "comment",
+      "state": "live",
+      "thread": "open",
+      "anchor": "attached"
+    }
+  ],
+  "diagnostics": []
+}

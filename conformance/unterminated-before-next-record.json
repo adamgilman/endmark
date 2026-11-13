@@ -1,0 +1,19 @@
+{
+  "about": "A record start outside a fence ends the open record before it. The second record is read normally.",
+  "items": [
+    {
+      "id": "c-2",
+      "kind": "comment",
+      "state": "live",
+      "thread": "open",
+      "anchor": "unquoted"
+    }
+  ],
+  "diagnostics": [
+    {
+      "line": 3,
+      "code": "unterminated-record",
+      "id": "c-1"
+    }
+  ]
+}

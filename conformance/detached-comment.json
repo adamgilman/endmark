@@ -1,0 +1,18 @@
+{
+  "items": [
+    {
+      "id": "c-1",
+      "kind": "comment",
+      "state": "live",
+      "thread": "open",
+      "anchor": "detached"
+    }
+  ],
+  "diagnostics": [
+    {
+      "line": 3,
+      "code": "detached",
+      "id": "c-1"
+    }
+  ]
+}

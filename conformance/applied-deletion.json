@@ -1,0 +1,12 @@
+{
+  "about": "An empty with cannot be located.",
+  "items": [
+    {
+      "id": "e-1",
+      "kind": "edit",
+      "state": "applied",
+      "status": "unlocatable"
+    }
+  ],
+  "diagnostics": []
+}

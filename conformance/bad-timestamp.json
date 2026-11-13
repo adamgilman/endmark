@@ -1,0 +1,18 @@
+{
+  "items": [
+    {
+      "id": "c-1",
+      "kind": "comment",
+      "state": "live",
+      "thread": "open",
+      "anchor": "unquoted"
+    }
+  ],
+  "diagnostics": [
+    {
+      "line": 3,
+      "code": "bad-timestamp",
+      "id": "c-1"
+    }
+  ]
+}

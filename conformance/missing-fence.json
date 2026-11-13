@@ -1,0 +1,19 @@
+{
+  "about": "An anchor record needs an on fence.",
+  "items": [
+    {
+      "id": "c-1",
+      "kind": "comment",
+      "state": "live",
+      "thread": "open",
+      "anchor": "unquoted"
+    }
+  ],
+  "diagnostics": [
+    {
+      "line": 5,
+      "code": "missing-fence",
+      "id": "c-1"
+    }
+  ]
+}

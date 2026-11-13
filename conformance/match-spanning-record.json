@@ -1,0 +1,32 @@
+{
+  "about": "The quote is in the body as text, but it spans the place a record was removed from, so it is not a match.",
+  "body": "one\n\n\ntwo\n\n",
+  "items": [
+    {
+      "id": "c-0",
+      "kind": "comment",
+      "state": "live",
+      "thread": "open",
+      "anchor": "unquoted"
+    },
+    {
+      "id": "c-1",
+      "kind": "comment",
+      "state": "live",
+      "thread": "open",
+      "anchor": "detached"
+    }
+  ],
+  "diagnostics": [
+    {
+      "line": 5,
+      "code": "body-after-log",
+      "id": null
+    },
+    {
+      "line": 7,
+      "code": "detached",
+      "id": "c-1"
+    }
+  ]
+}

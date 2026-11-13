@@ -1,0 +1,17 @@
+{
+  "about": "A terminator line inside an open fence closes the comment early. The rest of the record, up to the next terminator line, is not body.",
+  "body": "Hello world.\n\n\nTrailing paragraph.\n",
+  "items": [],
+  "diagnostics": [
+    {
+      "line": 6,
+      "code": "unterminated-fence",
+      "id": "c-1"
+    },
+    {
+      "line": 11,
+      "code": "body-after-log",
+      "id": null
+    }
+  ]
+}

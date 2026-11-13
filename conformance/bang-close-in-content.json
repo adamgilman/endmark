@@ -1,0 +1,11 @@
+{
+  "about": "Browsers close a comment at --!>.",
+  "items": [],
+  "diagnostics": [
+    {
+      "line": 4,
+      "code": "early-close",
+      "id": "c-1"
+    }
+  ]
+}

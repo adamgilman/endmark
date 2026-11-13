@@ -69,7 +69,7 @@ Readers find records with a line scanner. The draft spec's example parser worked
 2. In *body*, a line of up to three spaces, then three or more backticks or three or more tildes, opens a code fence. Remember the fence character and its length. Move to state *fence*. A backtick line whose info string contains a backtick, such as `` ```x``` y ``, does not open a fence **(new)**.
 3. In *fence*, a line of up to three spaces, then the same fence character repeated at least as many times, then only whitespace, closes the fence. Move to *body*. Every other line stays in the fence.
 4. In *body*, a line starting `<!--endmark ` at column 0 starts a record. If that line contains `-->`, the record is that single line and its header is the text before the first `-->`. Otherwise move to state *record*.
-5. In *record*, a line that is exactly `-->` ends the record. Move to *body*.
+5. In *record*, a line that is exactly `-->` ends the record. Move to *body*. A line that starts a record, outside any fence in the record's content, also ends it, on the line before (5.4).
 6. A record still open at end of file is malformed and runs to end of file **(new)**.
 
 Text inside a body code fence is never a record, so a document can show record examples.
@@ -138,7 +138,7 @@ A record missing `by` or `at` is malformed **(new)**.
 - Fence content is literal. It is the lines between the opening and closing fence lines, joined by LF, with no trailing newline. To end the content with a newline, leave an empty last line.
 - If the content contains a run of backticks, use a longer fence, as in Markdown.
 - Everything outside structural fences is the **note**, written in Markdown. The position of the note relative to the fences carries no meaning.
-- Any other backtick fence at column 0 belongs to the note, with its content. A reader tracks these, so that an `on` line shown inside a note's own code block is not read as structure. Tilde fences and indented fences in a note are not tracked.
+- Any other backtick fence at column 0 belongs to the note, with its content. A reader tracks these, so that an `on` line shown inside a note's own code block is not read as structure. Tilde fences and indented fences in a note are not tracked. As in the body, a backtick line whose info string contains a backtick does not open a fence.
 
 ### 5.3 The one escape rule
 
@@ -158,10 +158,14 @@ A record is **malformed** when any of these hold:
 - The terminator appears while a fence, structural or not, is still open.
 - A single-line record has text after its `-->` **(new)**.
 - It is missing a required attribute, or its header does not match the grammar **(new)**.
-- A `replace` fence is not followed by a `with` fence, or the fences required by its verb are absent **(new)**.
-- It is still open at end of file **(new)**.
+- A `replace` fence is not followed by a `with` fence **(new)**.
+- A fence the verb requires is absent or empty **(new)**: a `suggest` or `edit` with no edits, an `anchor` with no `on`, an `in` with no quote after it, or an empty `on` or `in`.
+- A structural fence does not fit the verb **(new)**: a `replace` or `with` in a comment, an `on` in a suggestion, a second `on`, an `in` that does not come directly before the quote it scopes, or any structural fence in `accept`, `reject`, `retract`, `resolve` or `reopen`.
+- It is still open at end of file, or where the next record starts **(new)**.
 
-Readers MUST ignore a malformed record and MUST report it. A malformed header MUST NOT stop the reader from processing the rest of the file. After an early close, readers SHOULD skip ahead to the next line that is exactly `-->` and treat the skipped lines as part of the malformed record, not as body.
+Readers MUST ignore a malformed record and MUST report it. A malformed header MUST NOT stop the reader from processing the rest of the file. After an early close, readers SHOULD skip ahead to the next line that is exactly `-->` and treat the skipped lines as part of the malformed record, not as body. The skip is bounded **(new)**: if another record starts, or the file ends, before such a line is found, the malformed record ends at the early close and nothing is skipped. Without the bound, one forgotten escape could swallow every record after it.
+
+A line that starts a record, outside any fence in the content, ends an open record on the line before it **(new)**. The open record is malformed, and the new record is read normally. A record start inside a fence is content: a suggestion may quote a document's own example of a record.
 
 A forgotten escape is the most likely authoring error, because Mermaid arrows contain `-->`. In a plain renderer the tail of such a record leaks as visible text under the document. Records are best written by a tool.
 
@@ -242,7 +246,8 @@ Readers ignore and report an action record when **(new)**:
 - its id names no item, or names an item that appears later in the file;
 - it is a `retract` whose `by` differs from the `by` of the item;
 - it is a `resolve` or `reopen` whose id is not a thread root;
-- its verb does not apply to that kind of item.
+- its verb does not apply to that kind of item;
+- it acts on an item whose state is final, including an `anchor` for a retracted comment.
 
 A comment whose `re` names no known item is treated as a root and reported as dangling **(new)**.
 
@@ -339,7 +344,7 @@ An aware renderer draws the body as ordinary Markdown, then layers records on to
 
 ### 12.1 Starting point
 
-The repository holds no implementation yet. Everything in section 12 is to be built.
+Milestone M1 is implemented: `endmark-core` with the read path, the commands `endmark lint`, `endmark status` and `endmark body`, and the conformance fixtures. The write path, the renderer and the demo page are still to be built.
 
 The draft spec came with a 145-line Python example parser. It was an illustration, not a foundation, and it is not part of this repository. Before it was set aside it was run for this RFC, on 2026-11-13, with two results worth keeping.
 
@@ -430,7 +435,7 @@ pub struct Document {
 - It takes one or more paths, or `-` for standard input, so an agent can check content before writing it to disk.
 - It needs no network, no configuration file and no other installed software.
 - Releases carry prebuilt binaries for Linux, macOS and Windows. `cargo install` also works.
-- A benchmark on a large fixture runs in CI. Its time budget is set at M1, once there is a measurement to base it on.
+- First measurement, on 2026-11-13 with a release build on a 10-core arm64 Linux machine: the worked example in 4 ms, and a 1 MB file with 2,000 comments in 0.35 s. On large files the time goes to anchor resolution, which rescans the body for each quote. A benchmark with a budget in CI is still to be added.
 
 **Exit status**
 
@@ -440,7 +445,7 @@ pub struct Document {
 | 1 | At least one error, or at least one warning under `--strict`. |
 | 2 | A file could not be read, or the arguments were wrong. |
 
-**Output.** One line per finding by default. `--format json` gives the same findings as one JSON object per file. Both forms carry the file, line, severity, code, the id of the item when there is one, a message, and a hint that says how to fix it. Codes and the JSON shape are stable within a major version.
+**Output.** One line per finding by default, each followed by its hint, then a one-line summary. `--format json` gives the same findings as one JSON object per file, one object per line. Both forms carry the file, line, severity, code, the id of the item when there is one, a message, and a hint that says how to fix it. Codes and the JSON shape are stable within a major version.
 
 The example below is illustrative, not captured output.
 
@@ -467,20 +472,22 @@ notes.md:63: warning[detached] c-7f3k: quote "port 8080" not found in body
 | Code | Severity | Raised when | Section |
 | --- | --- | --- | --- |
 | `early-close` | Error | Content contains `-->` or `--!>` before the terminator | 5.4 |
-| `unterminated-record` | Error | A record is still open at end of file | 5.4 |
+| `unterminated-record` | Error | A record is still open at end of file, or where the next record starts | 5.4 |
 | `unterminated-fence` | Error | The terminator appears inside an open fence | 5.4 |
 | `trailing-text` | Error | A single-line record has text after `-->` | 5.4 |
 | `bad-header` | Error | The header does not match the grammar | 5.1 |
 | `missing-attribute` | Error | `by` or `at` is absent | 5.1 |
-| `incomplete-edit` | Error | A `replace` has no `with`, or required fences are absent | 5.4 |
+| `incomplete-edit` | Error | A `replace` has no `with` | 5.4 |
+| `missing-fence` | Error | A fence the verb requires is absent or empty | 5.4 |
+| `unexpected-fence` | Error | A structural fence does not fit the verb | 5.4 |
 | `duplicate-id` | Error | An item reuses an earlier id | 8.1 |
 | `unknown-target` | Error | An action names no item, or one that appears later | 8.1 |
 | `wrong-target` | Error | The verb does not apply to that item, or `resolve` names a reply | 8.1 |
 | `not-author` | Error | A `retract` is not by the item's author | 8.1 |
 | `already-final` | Error | An action follows a final state | 8.1 |
 | `visible-record` | Error | The scanner and CommonMark disagree about a record (D-8) | 4.1 |
-| `detached` | Warning | A comment's quote is not in the body | 6 |
-| `ambiguous` | Warning | A comment's quote, or its scope, occurs more than once | 6 |
+| `detached` | Warning | A live comment in an open thread has a quote that is not in the body | 6 |
+| `ambiguous` | Warning | A live comment in an open thread has a quote, or a scope, that occurs more than once | 6 |
 | `stale` | Warning | An open suggestion cannot be applied; the message says why | 8.2 |
 | `dangling-reply` | Warning | `re` names no known item | 8.1 |
 | `body-after-log` | Warning | Body text follows a record | 4.3 |
@@ -529,7 +536,7 @@ The demo page lets someone understand the format in a minute, in a browser, with
 
 ### 12.6 Conformance suite
 
-Each fixture is an input file and the expected reader output: the body, every item with its stored and derived state, and every diagnostic. Writer fixtures add an operation and the expected output file.
+Each fixture is an input file, `NAME.md`, and the expected reader output, `NAME.json`: the body, every item with its stored and derived state, and every finding with its line and code. An implementation is checked by comparing its equivalent of `endmark status --format json` with the expectation. `conformance/README.md` gives the format. Writer fixtures, which add an operation and the expected output file, come with M2.
 
 The suite MUST contain at least one fixture for every MUST and every **(new)** rule in sections 4 to 9, one for every row of the table in 12.1, one for every finding code in 12.4, plus:
 
@@ -628,7 +635,8 @@ Rules that are new:
 - A backtick line with a backtick in its info string does not open a body fence (4.1).
 - A match may not span a removed record (4.2).
 - Unknown attributes are ignored; a duplicated key takes its first value; values may not contain a comment terminator (4.3, 5.1).
-- More ways to be malformed: open at end of file, `--!>` in content, text after a single-line terminator, a missing `by` or `at`, a bad header, an incomplete edit (5.4).
+- More ways to be malformed: open at end of file, `--!>` in content, text after a single-line terminator, a missing `by` or `at`, a bad header, an incomplete edit, a missing or empty fence, a fence that does not fit the verb (5.4).
+- The skip after an early close is bounded, and a record start outside a fence ends an open record (5.4). Both were found while implementing the scanner.
 - Occurrences are counted at every start position; files are UTF-8 (section 6).
 - The insertion point for an empty `replace` (section 6).
 - The thread root, which action records are ignored, and retraction of a comment being final (section 7, 8.1).

@@ -1,0 +1,19 @@
+{
+  "about": "reopen acts on the thread and does not bring a retracted comment back.",
+  "items": [
+    {
+      "id": "c-1",
+      "kind": "comment",
+      "state": "retracted",
+      "thread": "open",
+      "anchor": "unquoted"
+    }
+  ],
+  "diagnostics": [
+    {
+      "line": 9,
+      "code": "already-final",
+      "id": "c-1"
+    }
+  ]
+}

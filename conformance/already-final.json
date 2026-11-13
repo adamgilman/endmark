@@ -1,0 +1,17 @@
+{
+  "items": [
+    {
+      "id": "s-1",
+      "kind": "suggestion",
+      "state": "rejected",
+      "status": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "line": 14,
+      "code": "already-final",
+      "id": "s-1"
+    }
+  ]
+}

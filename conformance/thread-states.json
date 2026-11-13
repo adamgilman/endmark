@@ -1,0 +1,19 @@
+{
+  "items": [
+    {
+      "id": "c-1",
+      "kind": "comment",
+      "state": "live",
+      "thread": "resolved",
+      "anchor": "unquoted"
+    },
+    {
+      "id": "c-2",
+      "kind": "comment",
+      "state": "live",
+      "root": "c-1",
+      "anchor": "unquoted"
+    }
+  ],
+  "diagnostics": []
+}

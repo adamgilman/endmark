@@ -1,0 +1,11 @@
+{
+  "about": "A replace with no with is malformed. It is not a deletion.",
+  "items": [],
+  "diagnostics": [
+    {
+      "line": 3,
+      "code": "incomplete-edit",
+      "id": "s-1"
+    }
+  ]
+}

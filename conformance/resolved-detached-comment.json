@@ -1,0 +1,13 @@
+{
+  "about": "A detached comment in a resolved thread needs no attention, so there is no warning.",
+  "items": [
+    {
+      "id": "c-1",
+      "kind": "comment",
+      "state": "live",
+      "thread": "resolved",
+      "anchor": "detached"
+    }
+  ],
+  "diagnostics": []
+}
