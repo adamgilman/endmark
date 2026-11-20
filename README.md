@@ -2,7 +2,17 @@
 
 Endmark adds comments, grouped suggestions and a decision history to a Markdown file without changing how the file renders. The Markdown body stays untouched, and all review state lives in an append-only log of HTML-comment records at the end of the file.
 
-**Status: early.** The reader and the linter work. The commands that write records, the renderer and the demo page do not exist yet. The format is defined in [RFC 0001](rfcs/0001-endmark.md), which is open for comment and may still change.
+**Status: alpha.** The format, the linter and the command-line tool work and are tested. A review renderer and a demo page are planned and not built. The format is defined in [RFC 0001](rfcs/0001-endmark.md) and may still change before 0.1.0.
+
+## Install
+
+You need a Rust toolchain, 1.80 or later.
+
+```sh
+cargo install --git https://github.com/adamgilman/endmark endmark
+```
+
+Or build from a checkout with `cargo build --release`; the binary is `target/release/endmark`. It is one static binary with no configuration and no network access.
 
 ## What a file looks like
 
@@ -85,17 +95,42 @@ notes.md:39: error[wrong-target] r-3h7m: suggestion "s-8k1d" is open, not accept
   hint: check which kind of item this verb acts on
 ```
 
-You can go back and forth as often as you like. Each step is one more `revert` record that names the one before it, so the history is a single chain. You will not have to find the end of the chain yourself: `endmark revert s-4q8d` will follow it and name the right record, and will tell you if the change is already undone.
+You can go back and forth as often as you like. Each step is one more `revert` record that names the one before it, so the history is a single chain.
 
-Today the reader and the linter understand `revert` records. The command that writes them, `endmark revert ID`, comes with the other write commands.
+### The command
+
+`endmark revert FILE ID` writes these records for you. It puts the text back, appends the `revert` record, and re-points any comment whose quoted text it changed.
+
+```sh
+endmark revert --by maria --note "The v2 rollout is postponed." notes.md s-4q8d
+```
+
+```text
+notes.md: reverted s-4q8d: appended r-6w2p (re=s-4q8d); re-pointed c-7f3k
+```
+
+You do not have to find the end of the chain. Name any record in it. If that change is in effect, the command undoes it by reverting the latest record, and says so:
+
+```text
+notes.md: reverted s-4q8d: appended r-8t32 (re=r-1k8v); followed the chain from s-4q8d to r-1k8v
+```
+
+If it is already undone, the command refuses and tells you what would bring it back:
+
+```text
+notes.md: refused[not-in-effect] r-6w2p: "r-6w2p" is already undone; the latest revert in its chain is "r-1k8v"
+  hint: to bring it back, revert "r-1k8v"
+```
+
+- `--by HANDLE` says who is writing. Set `ENDMARK_BY` to avoid repeating it. Agents add `--for PERSON`.
+- `--dry-run` prints the resulting file and writes nothing. So does `-` as the file, which reads standard input.
+- The command refuses, with exit status 1 and the file untouched, when the text has changed since the change was applied, or when the change deleted text without recording where. It never guesses.
 
 ## The linter
 
 `endmark lint` checks that every record in a file will be read, and that nothing in it will show up in a rendered page by mistake. It is meant for agents to run after every write. It never changes a file.
 
 ```sh
-cargo build --release          # the binary is target/release/endmark
-
 endmark lint notes.md          # exit 0: no errors; 1: errors; 2: could not read
 endmark lint --strict notes.md # warnings fail too
 endmark lint --format json notes.md
@@ -108,25 +143,64 @@ notes.md:71: error[early-close] s-4q8d: content contains "-->" before the termin
 checked 1 file: 1 error, 0 warnings
 ```
 
-Two more commands read a file:
+Three more commands read a file:
 
 - `endmark status FILE` lists every comment, suggestion, edit and revert with its state.
+- `endmark log FILE` prints the history, newest first.
 - `endmark body FILE` prints the document without its records.
+
+## Writing records
+
+Records are best written by a tool, because quoted text has to be escaped and has to match the document exactly once. There is one command per kind of record. Each appends one record; only `accept`, `edit` and `revert` change the document itself.
+
+```sh
+export ENDMARK_BY=maria        # or pass --by to each command
+
+endmark comment --on "port 8080" --note "Is this still right?" notes.md
+endmark reply --note "Confirmed." notes.md c-7f3k
+endmark suggest --replace "port 8080" --with "port 8443" --note "Port changed in v2." notes.md
+endmark accept notes.md s-4q8d
+endmark reject --note "Not yet." notes.md s-4q8d
+endmark resolve notes.md c-7f3k
+```
+
+```text
+notes.md: added comment c-7f3k
+notes.md: accepted s-4q8d; re-pointed c-7f3k
+```
+
+- **Quoted text** (`--on`, `--replace`) is Markdown source and must be in the document exactly once. If it is not, add `--in` with the surrounding text.
+- **Several edits in one suggestion**: repeat `--replace` and `--with`. They are accepted or rejected together.
+- **Agents** add `--for PERSON` to name who they act for.
+- **Trying it out**: `--dry-run` prints the resulting file and writes nothing.
+- `retract` withdraws your own comment or suggestion, `reopen` opens a thread again, `edit` makes a change directly and logs it, and `anchor` points a comment at new text after its quote went missing.
+
+A command that cannot do what was asked changes nothing and says why:
+
+```text
+notes.md: refused[quote-ambiguous]: "relay" is in the document more than once
+  hint: quote more text, or give the surrounding text as the scope (--in)
+```
+
+After `accept`, `edit` or `revert`, the command also tells you which open comments lost their quoted text and which open suggestions no longer apply.
 
 ## Layout
 
 | Path | Holds |
 | --- | --- |
 | `rfcs/` | The RFC: the format and the plan |
-| `crates/endmark-core/` | The reader: scanner, records, state, anchoring, findings |
+| `crates/endmark-core/` | The reader and the writer: scanner, records, state, anchoring, findings, and one write operation per verb |
 | `crates/endmark-cli/` | The `endmark` command |
 | `conformance/` | Fixtures any implementation can be checked against |
 
 ## Planned
 
-- the commands that write records: `comment`, `suggest`, `accept`, `revert` and the rest
 - a reference review renderer
 - a demo page that shows a document beside its raw source and lets you watch the source change as you comment, suggest, accept and revert
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Changes are listed in [CHANGELOG.md](CHANGELOG.md), and [SECURITY.md](SECURITY.md) says what to keep in mind when agents read files with hidden records.
 
 ## Licence
 

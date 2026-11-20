@@ -339,6 +339,12 @@ A revert is all or nothing, like an accept. To undo part of a change, write a su
 - If it had no scope, the place is not recorded, and the writer MUST fail.
 - For this reason a writer SHOULD give every deletion an `in` scope, in a suggestion and in a revert alike, so that the deletion can be reverted.
 
+**Limits of the reference implementation.** These apply to every write, not only to revert. It reads its own result back before returning it, and refuses the write if a reader would not find the new record, or would read its edits or its note differently. That covers the check in 9.1. It also refuses when the text to change sits after the first record in the file, where body text only ends up through an unaware editor.
+
+New text is checked against the log before it is written. A write is refused if it would join text onto the line of an existing record, or if the new text holds a line that a reader would take for a record: accepting a suggestion must never be a way to plant an `accept` under someone else's name. A comment is re-pointed only when the edit replaced the very range the comment was attached to, not the same words elsewhere.
+
+A file with CRLF line endings is written back with CRLF, and text given with CRLF matches it. A file that mixes the two is not written at all.
+
 **What a revert leaves alone.** It does not reopen a suggestion, and it does not resolve, reopen or retract any comment. Other open suggestions are checked against the new body on the next read, as after any change to the body. A change made by a tool that wrote no record cannot be reverted, because there is nothing to name (D-3).
 
 ### 9.4 Repairing anchors
@@ -402,7 +408,7 @@ An aware renderer draws the body as ordinary Markdown, then layers records on to
 
 ### 12.1 Starting point
 
-Milestone M1 is implemented: `endmark-core` with the read path, including reading `revert` records, the commands `endmark lint`, `endmark status` and `endmark body`, and the conformance fixtures. The write path, the renderer and the demo page are still to be built.
+Milestones M1 and M2 are implemented: `endmark-core` with the read path and one write operation per verb, the `endmark` command with every command in the table in 12.3, and the reader and writer fixtures (12.6). The renderer and the demo page are still to be built, and so is the benchmark budget in CI from the M1 exit test. CI tests and builds on Linux, macOS and Windows, and pushing a version tag builds the release binaries.
 
 The draft spec came with a 145-line Python example parser. It was an illustration, not a foundation, and it is not part of this repository. Before it was set aside it was run for this RFC, on 2026-11-13, with two results worth keeping.
 
@@ -478,11 +484,29 @@ pub struct Document {
 | --- | --- |
 | `endmark lint FILE...` | Validates files (12.4). The first command to ship. |
 | `endmark body FILE` | Prints the body only |
-| `endmark status FILE` | Lists open items with state; `--format json` for tools |
-| `endmark comment`, `suggest`, `reply` | Append a record, with escaping and uniqueness handled |
-| `endmark accept`, `reject`, `retract`, `resolve`, `reopen` | Append the action, and for `accept` apply the edits |
-| `endmark revert ID` | Undo a change: apply its edits backwards and append a `revert` record. `ID` is an accepted suggestion, an `edit` or a revert, and may be any link of a chain: the command follows the chain to its tip (9.3). It refuses if `ID` is not in effect, and names the id that would bring it back. |
-| `endmark log FILE` | Prints history, newest first |
+| `endmark status FILE` | Lists every item with its state; `--format json` for tools |
+| `endmark comment FILE` | Comment on quoted text (`--on`, with an optional `--in`), or on the whole document |
+| `endmark reply FILE ID` | Reply to a comment, or remark on another item |
+| `endmark suggest FILE` | Propose one or more edits, each `[--in] --replace --with`. The body is not changed. |
+| `endmark edit FILE` | Make one or more edits now and log them with an `edit` record |
+| `endmark accept FILE ID` | Apply every edit of a suggestion and append the record (9.2, 9.4) |
+| `endmark reject`, `retract FILE ID` | Append the action |
+| `endmark resolve`, `reopen FILE ID` | Append the action. `ID` may be any comment of the thread; the record names the root. |
+| `endmark anchor FILE ID` | Re-point a comment at new text (`--on`, with an optional `--in`) |
+| `endmark revert FILE ID` | Undo a change: apply its edits backwards and append a `revert` record. `ID` is an accepted suggestion, an `edit` or a revert, and may be any link of a chain: the command follows the chain to its tip (9.3). It refuses if `ID` is not in effect, and names the id that would bring it back. `--by` or `ENDMARK_BY` gives the author; `--note`, `--for`, `--id`, `--at` and `--dry-run` are optional. |
+| `endmark log FILE` | Prints history, newest first; `--format json` for tools |
+
+Every command that writes takes `--by` (or `ENDMARK_BY`), and optionally `--for`, `--note`, `--id`, `--at` and `--dry-run`. With `-` as the file it reads standard input and prints the result. It exits 1, with the file untouched, when the write is refused.
+
+**What the writing commands refuse (new).** A writer in the reference implementation never writes a record that a reader would ignore or report:
+
+- a quote, or the `replace` text of an edit, that does not match exactly once, or two edits that overlap;
+- an action the reader would ignore under 8.1, such as a `retract` by someone other than the author, with the linter's code for it;
+- a `resolve` of a resolved thread or a `reopen` of an open one, which would change nothing;
+- a comment with neither a quote nor a note;
+- a note, a quote or an id that a reader would read back differently from what was given.
+
+After a write that changes the body, the command also names the open comments it detached and could not re-point, and the open suggestions it made stale.
 
 ### 12.4 Linter
 
@@ -598,7 +622,7 @@ The demo page lets someone understand the format in a minute, in a browser, with
 
 ### 12.6 Conformance suite
 
-Each fixture is an input file, `NAME.md`, and the expected reader output, `NAME.json`: the body, every item with its stored and derived state, and every finding with its line and code. An implementation is checked by comparing its equivalent of `endmark status --format json` with the expectation. `conformance/README.md` gives the format. Writer fixtures, which add an operation and the expected output file, come with M2.
+Each fixture is an input file, `NAME.md`, and the expected reader output, `NAME.json`: the body, every item with its stored and derived state, and every finding with its line and code. An implementation is checked by comparing its equivalent of `endmark status --format json` with the expectation. `conformance/README.md` gives the format. A writer fixture is a directory under `conformance/write/` holding an input file, an operation, and either the expected output file, byte for byte, or the reason the write must be refused. There is at least one for every command that writes.
 
 The suite MUST contain at least one fixture for every MUST and every **(new)** rule in sections 4 to 9, one for every row of the table in 12.1, one for every finding code in 12.4, plus:
 

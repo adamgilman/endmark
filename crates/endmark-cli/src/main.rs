@@ -1,12 +1,16 @@
 //! The `endmark` command: lint and inspect Endmark files.
 //!
-//! This is the read path only. The commands that write records come with
-//! milestone M2 of RFC 0001.
+//! Commands that read (`lint`, `status`, `body`, `log`) and commands that
+//! write, one per verb of RFC 0001.
 
+use std::hash::{BuildHasher, Hasher};
 use std::io::{self, Read, Write};
+use std::path::Path;
 use std::process::ExitCode;
+use std::time::{SystemTime, UNIX_EPOCH};
 
-use endmark_core::{Applicability, Detail, Diagnostic, Document, Item, Landing};
+use endmark_core::write::{self, Stamp};
+use endmark_core::{Applicability, Detail, Diagnostic, Document, Edit, Item, Landing, Quote, Verb};
 use serde_json::{json, Map, Value};
 
 const USAGE: &str = "\
@@ -15,31 +19,73 @@ endmark: comments, suggestions and history for Markdown files
 Usage:
   endmark lint [--strict] [--format text|json] FILE...
   endmark status [--format text|json] FILE
+  endmark log [--format text|json] FILE
   endmark body FILE
+
+  endmark comment [--on TEXT [--in TEXT]] [--note TEXT] FILE
+  endmark reply   [--on TEXT [--in TEXT]] --note TEXT FILE ID
+  endmark suggest ([--in TEXT] --replace TEXT --with TEXT)... [--note TEXT] FILE
+  endmark edit    ([--in TEXT] --replace TEXT --with TEXT)... [--note TEXT] FILE
+  endmark accept | reject | retract | resolve | reopen [--note TEXT] FILE ID
+  endmark anchor  --on TEXT [--in TEXT] FILE ID
+  endmark revert  [--note TEXT] FILE ID
+
   endmark --help | --version
 
-FILE may be - to read standard input.
+FILE may be - to read standard input. A command that writes then prints
+the resulting file to standard output.
 
-Commands:
+Commands that read:
   lint     Check files. Reports records a reader would ignore, and items
            that need attention. Never writes.
   status   List every item with its state.
+  log      Print the history, newest first.
   body     Print the document without its records.
+
+Commands that write. Each appends one record. Only accept, edit and
+revert change the document itself.
+  comment  Comment on quoted text (--on), or on the whole document.
+  reply    Reply to a comment, or remark on a suggestion.
+  suggest  Propose one or more replacements. The document is not changed.
+  edit     Make one or more replacements now, and log them.
+  accept   Apply every edit of a suggestion.
+  reject   Decline a suggestion.
+  retract  Withdraw your own comment or suggestion.
+  resolve  Close a thread. ID may be any comment in it.
+  reopen   Open a thread again.
+  anchor   Point a comment at new text, after its quote went missing.
+  revert   Undo an accepted suggestion, an edit, or an earlier revert.
+           The text goes back and nothing is erased. To bring the change
+           back, revert again. ID may be any record of the chain.
+
+Quoted text (--on, --in, --replace) is Markdown source, exactly as in
+the file, and must match exactly once. --in gives surrounding text to
+search within. An empty --with deletes; an empty --replace appends to
+the end of the document.
 
 Options:
   --strict         lint: exit 1 on warnings as well as errors
   --format FORMAT  text (default) or json
+  --by HANDLE      who is writing. Default: $ENDMARK_BY
+  --for PERSON     the person an agent is acting for
+  --note TEXT, -m  the note, in Markdown
+  --dry-run        print the resulting file, do not write it
+  --id ID          id for a new item. Default: random
+  --at TIME        RFC 3339 UTC time. Default: now
 
 Exit status:
-  0  no errors
-  1  at least one error, or a warning under --strict
-  2  a file could not be read, or the arguments were wrong
+  0  no errors; for a write: the file was written
+  1  at least one error, or a warning under --strict; for a write:
+     refused, and nothing was written
+  2  a file could not be read or written, or the arguments were wrong
 ";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match run(&args) {
         Ok(code) => code,
+        // The reader of our output went away, as in `endmark log | head`.
+        Err(message) if message.contains("Broken pipe") => ExitCode::SUCCESS,
         Err(message) => {
             eprintln!("endmark: {message}");
             ExitCode::from(2)
@@ -109,6 +155,9 @@ fn run(args: &[String]) -> Result<ExitCode, String> {
         "lint" => lint(parse_options(rest, true)?),
         "status" => status(parse_options(rest, false)?),
         "body" => body(parse_options(rest, false)?),
+        "log" => log(parse_options(rest, false)?),
+        "comment" | "reply" | "suggest" | "edit" | "accept" | "reject" | "retract" | "resolve" | "reopen"
+        | "anchor" | "revert" => write_command(command, rest),
         other => Err(format!("unknown command \"{other}\"; see endmark --help")),
     }
 }
@@ -224,6 +273,395 @@ fn finding_json(d: &Diagnostic) -> Value {
         "message": d.message,
         "hint": d.hint(),
     })
+}
+
+// ---- revert ----
+
+/// The current time as RFC 3339 in UTC, to the second.
+fn now_utc() -> String {
+    let secs = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs()) as i64;
+    let (days, rem) = (secs.div_euclid(86_400), secs.rem_euclid(86_400));
+    // Days since 1970-01-01 to a civil date (Howard Hinnant's algorithm).
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!(
+        "{year:04}-{month:02}-{day:02}T{:02}:{:02}:{:02}Z",
+        rem / 3_600,
+        rem % 3_600 / 60,
+        rem % 60
+    )
+}
+
+/// A type letter, a hyphen and four random base-32 characters (RFC 5.1),
+/// not already used in the file.
+fn fresh_id(letter: char, doc: &Document) -> String {
+    const ALPHABET: &[u8] = b"0123456789abcdefghjkmnpqrstvwxyz";
+    loop {
+        // The standard library seeds each RandomState from the operating system.
+        let mut bits = std::collections::hash_map::RandomState::new().build_hasher().finish();
+        let mut id = format!("{letter}-");
+        for _ in 0..4 {
+            id.push(ALPHABET[(bits & 31) as usize] as char);
+            bits >>= 5;
+        }
+        if doc.item(&id).is_none() {
+            return id;
+        }
+    }
+}
+
+/// Replaces a file in one step (RFC 9.2), unless it changed since it was
+/// read (RFC 9.5).
+fn replace_file(path: &str, read: &str, new: &str) -> Result<(), String> {
+    let fail = |e: io::Error| format!("{path}: {e}");
+    // Write through a symbolic link, not over it.
+    let real = std::fs::canonicalize(path).map_err(fail)?;
+    let name = real
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let temp = real.with_file_name(format!(".{name}.endmark-{}.tmp", std::process::id()));
+    let meta = std::fs::metadata(&real).map_err(fail)?;
+    if meta.permissions().readonly() {
+        return Err(format!("{path}: the file is read-only"));
+    }
+    // The temporary file gets the mode of the target before it gets the
+    // content, so a private file is never readable by others on the way.
+    let written = std::fs::File::create(&temp)
+        .and_then(|mut file| {
+            file.set_permissions(meta.permissions())?;
+            file.write_all(new.as_bytes())?;
+            file.sync_all()
+        })
+        .map_err(fail)
+        .and_then(|()| match std::fs::read(&real) {
+            Ok(current) if current == read.as_bytes() => Ok(()),
+            Ok(_) => Err(format!(
+                "{path}: the file changed while this command ran; nothing was written"
+            )),
+            Err(e) => Err(fail(e)),
+        })
+        .and_then(|()| std::fs::rename(&temp, &real).map_err(fail));
+    if written.is_err() {
+        let _ = std::fs::remove_file(Path::new(&temp));
+    }
+    written
+}
+
+/// The arguments of a command that writes.
+struct WriteArgs {
+    by: Option<String>,
+    person: Option<String>,
+    note: Option<String>,
+    id: Option<String>,
+    at: Option<String>,
+    dry_run: bool,
+    /// `--in`, `--on`, `--replace` and `--with`, in the order given.
+    texts: Vec<(String, String)>,
+    positional: Vec<String>,
+}
+
+fn parse_write_args(args: &[String]) -> Result<WriteArgs, String> {
+    let mut parsed = WriteArgs {
+        by: std::env::var("ENDMARK_BY").ok(),
+        person: None,
+        note: None,
+        id: None,
+        at: None,
+        dry_run: false,
+        texts: Vec::new(),
+        positional: Vec::new(),
+    };
+    let mut only_positional = false;
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        if only_positional || arg == "-" || !arg.starts_with('-') {
+            parsed.positional.push(arg.clone());
+            continue;
+        }
+        let (name, inline) = match arg.split_once('=') {
+            Some((name, value)) if name.starts_with("--") => (name, Some(value.to_string())),
+            _ => (arg.as_str(), None),
+        };
+        let mut value = || {
+            inline
+                .clone()
+                .or_else(|| it.next().cloned())
+                .ok_or(format!("{name} needs a value"))
+        };
+        match name {
+            "--" => only_positional = true,
+            "--dry-run" => parsed.dry_run = true,
+            "--by" => parsed.by = Some(value()?),
+            "--for" => parsed.person = Some(value()?),
+            "--note" | "-m" => parsed.note = Some(value()?),
+            "--id" => parsed.id = Some(value()?),
+            "--at" => parsed.at = Some(value()?),
+            "--in" | "--on" | "--replace" | "--with" => parsed.texts.push((name[2..].to_string(), value()?)),
+            _ => return Err(format!("unknown option \"{arg}\"; see endmark --help")),
+        }
+    }
+    Ok(parsed)
+}
+
+/// `[--in TEXT] --on TEXT`, or nothing.
+fn quote_from(texts: &[(String, String)], command: &str) -> Result<Option<Quote>, String> {
+    let names: Vec<&str> = texts.iter().map(|(name, _)| name.as_str()).collect();
+    match names.as_slice() {
+        [] => Ok(None),
+        ["on"] => Ok(Some(Quote {
+            scope: None,
+            on: texts[0].1.clone(),
+        })),
+        ["in", "on"] | ["on", "in"] => {
+            let scope = texts
+                .iter()
+                .find(|(name, _)| name == "in")
+                .map(|(_, text)| text.clone());
+            let on = texts
+                .iter()
+                .find(|(name, _)| name == "on")
+                .map(|(_, text)| text.clone());
+            Ok(Some(Quote {
+                scope,
+                on: on.unwrap_or_default(),
+            }))
+        }
+        _ => Err(format!("{command} takes --on TEXT, with an optional --in TEXT")),
+    }
+}
+
+/// One or more `[--in TEXT] --replace TEXT --with TEXT`.
+fn edits_from(texts: &[(String, String)], command: &str) -> Result<Vec<Edit>, String> {
+    let usage = || format!("{command} takes one or more of: [--in TEXT] --replace TEXT --with TEXT");
+    let mut edits = Vec::new();
+    let mut scope: Option<String> = None;
+    let mut replace: Option<String> = None;
+    for (name, text) in texts {
+        match (name.as_str(), &replace) {
+            ("in", None) if scope.is_none() => scope = Some(text.clone()),
+            ("replace", None) => replace = Some(text.clone()),
+            ("with", Some(_)) => edits.push(Edit {
+                scope: scope.take(),
+                replace: replace.take().unwrap_or_default(),
+                with: text.clone(),
+            }),
+            _ => return Err(usage()),
+        }
+    }
+    if edits.is_empty() || scope.is_some() || replace.is_some() {
+        return Err(usage());
+    }
+    Ok(edits)
+}
+
+fn write_command(command: &str, args: &[String]) -> Result<ExitCode, String> {
+    let parsed = parse_write_args(args)?;
+    let takes_id = !matches!(command, "comment" | "suggest" | "edit");
+    let (path, target) = match (parsed.positional.as_slice(), takes_id) {
+        ([path], false) => (path.as_str(), ""),
+        ([path, target], true) => (path.as_str(), target.as_str()),
+        (_, false) => return Err(format!("{command} needs a file; see endmark --help")),
+        (_, true) => return Err(format!("{command} needs a file and an id; see endmark --help")),
+    };
+    let by = parsed.by.filter(|b| !b.is_empty()).ok_or(format!(
+        "{command} needs to know who is writing: pass --by HANDLE or set ENDMARK_BY"
+    ))?;
+    let takes_texts = match command {
+        "comment" | "reply" | "anchor" => "quote",
+        "suggest" | "edit" => "edits",
+        _ => "",
+    };
+    if takes_texts.is_empty() && !parsed.texts.is_empty() {
+        return Err(format!("{command} takes no --{}", parsed.texts[0].0));
+    }
+
+    let source = read(path)?;
+    let at = parsed.at.unwrap_or_else(now_utc);
+    let stamp = Stamp {
+        by: &by,
+        at: &at,
+        on_behalf_of: parsed.person.as_deref(),
+        note: parsed.note.as_deref().unwrap_or(""),
+    };
+    let new_id = |letter| {
+        parsed
+            .id
+            .clone()
+            .unwrap_or_else(|| fresh_id(letter, &endmark_core::parse(&source)))
+    };
+
+    let (result, did) = match command {
+        "comment" | "reply" => {
+            let quote = quote_from(&parsed.texts, command)?;
+            let re = (command == "reply").then_some(target);
+            let done = write::comment(&source, &new_id('c'), &stamp, quote.as_ref(), re);
+            let did = match re {
+                Some(re) => format!("replied to {re} with comment"),
+                None => "added comment".to_string(),
+            };
+            (done, did)
+        }
+        "suggest" => {
+            let edits = edits_from(&parsed.texts, command)?;
+            let done = write::suggest(&source, &new_id('s'), &stamp, &edits);
+            (done, "added suggestion".to_string())
+        }
+        "edit" => {
+            let edits = edits_from(&parsed.texts, command)?;
+            let done = write::edit(&source, &new_id('e'), &stamp, &edits);
+            (done, "applied edit".to_string())
+        }
+        "accept" => (write::accept(&source, target, &stamp), "accepted".to_string()),
+        "anchor" => {
+            let quote = quote_from(&parsed.texts, command)?.ok_or("anchor needs --on TEXT")?;
+            (write::anchor(&source, target, &stamp, &quote), "re-pointed".to_string())
+        }
+        "revert" => (write::revert(&source, target, &new_id('r'), &stamp), String::new()),
+        _ => {
+            let verb = Verb::from_name(command).ok_or(format!("unknown command \"{command}\""))?;
+            let did = match verb {
+                Verb::Reject => "rejected",
+                Verb::Retract => "retracted",
+                Verb::Resolve => "resolved",
+                _ => "reopened",
+            };
+            (write::act(&source, verb, target, &stamp), did.to_string())
+        }
+    };
+    let done = match result {
+        Ok(done) => done,
+        Err(e) => {
+            let subject = if target.is_empty() {
+                String::new()
+            } else {
+                format!(" {target}")
+            };
+            eprintln!(
+                "{}: refused[{}]{subject}: {e}\n  hint: {}",
+                display_name(path),
+                e.code(),
+                e.hint()
+            );
+            return Ok(ExitCode::from(1));
+        }
+    };
+
+    let to_stdout = parsed.dry_run || path == "-";
+    if to_stdout {
+        io::stdout()
+            .write_all(done.source.as_bytes())
+            .map_err(|e| format!("standard output: {e}"))?;
+    } else {
+        replace_file(path, &source, &done.source)?;
+    }
+
+    let mut summary = format!("{}: ", display_name(path));
+    if parsed.dry_run {
+        summary.push_str("dry run: ");
+    }
+    match &done.target {
+        // A revert.
+        Some(tip) => {
+            summary.push_str(&format!("reverted {target}: appended {} (re={tip})", done.id));
+            if tip != target {
+                summary.push_str(&format!("; followed the chain from {target} to {tip}"));
+            }
+        }
+        None => {
+            summary.push_str(&format!("{did} {}", done.id));
+            if takes_id && command != "reply" && done.id != target {
+                summary.push_str(&format!(", the root of the thread of {target}"));
+            }
+        }
+    }
+    for (label, ids) in [
+        ("re-pointed", &done.reanchored),
+        ("detached", &done.detached),
+        ("now stale", &done.stale),
+    ] {
+        if !ids.is_empty() {
+            summary.push_str(&format!("; {label} {}", ids.join(", ")));
+        }
+    }
+    // The summary goes to standard error when the file itself is on standard output.
+    // The file is already written, so a closed pipe here is not a failure.
+    if to_stdout {
+        let _ = writeln!(io::stderr(), "{summary}");
+    } else {
+        let _ = writeln!(io::stdout(), "{summary}");
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+// ---- log ----
+
+/// History, newest first: every record that took effect.
+fn log(options: Options) -> Result<ExitCode, String> {
+    let path = one_file(&options, "log")?;
+    let doc = endmark_core::parse(&read(&path)?);
+    let mut entries: Vec<Value> = Vec::new();
+    for item in &doc.items {
+        let verb = match item.detail {
+            Detail::Comment(_) => "comment",
+            Detail::Suggestion(_) => "suggest",
+            Detail::Edit(_) => "edit",
+            Detail::Revert(_) => "revert",
+        };
+        entries.push(json!({
+            "line": item.line, "at": item.at, "by": item.by, "for": item.on_behalf_of,
+            "verb": verb, "id": item.id, "re": item.re, "note": item.note,
+        }));
+        // A revert is an item of its own, listed above; skip its event on the target.
+        for event in item.events.iter().filter(|e| e.verb != Verb::Revert) {
+            entries.push(json!({
+                "line": event.line, "at": event.at, "by": event.by, "for": event.on_behalf_of,
+                "verb": event.verb.as_str(), "id": item.id, "re": null, "note": event.note,
+            }));
+        }
+    }
+    entries.sort_by_key(|e| std::cmp::Reverse(e["line"].as_u64()));
+
+    let mut out = io::stdout().lock();
+    let written = match options.format {
+        Format::Json => writeln!(out, "{}", json!({"file": display_name(&path), "entries": entries})),
+        Format::Text => {
+            if entries.is_empty() {
+                writeln!(out, "no records").map_err(|e| format!("standard output: {e}"))?;
+            }
+            entries.iter().try_for_each(|e| {
+                let text = |key: &str| e[key].as_str().unwrap_or_default().to_string();
+                let author = match e["for"].as_str() {
+                    Some(person) => format!("{} for {person}", text("by")),
+                    None => text("by"),
+                };
+                let mut about = text("note").lines().next().unwrap_or_default().to_string();
+                if let Some(re) = e["re"].as_str() {
+                    let link = if text("verb") == "revert" { "reverts" } else { "re" };
+                    about = format!("{link} {re}{}{about}", if about.is_empty() { "" } else { ": " });
+                }
+                let about: String = about.chars().take(72).collect();
+                writeln!(
+                    out,
+                    "{:<22} {:<8} {:<10} {:<24} {}",
+                    text("at"),
+                    text("verb"),
+                    text("id"),
+                    author,
+                    about
+                )
+            })
+        }
+    };
+    written.map_err(|e| format!("standard output: {e}"))?;
+    Ok(ExitCode::SUCCESS)
 }
 
 // ---- body ----

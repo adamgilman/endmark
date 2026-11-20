@@ -1,11 +1,15 @@
 [package]
 name = "endmark-core"
-description = "Reader for Endmark, a collaboration layer for Markdown: scanner, records, state and anchoring"
+description = "Reader and writer for Endmark, a collaboration layer for Markdown: scanner, records, state and anchoring"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
+keywords.workspace = true
+categories = ["text-processing", "parser-implementations"]
+readme = "README.md"
+exclude = ["tests"]
 
 [features]
 default = ["commonmark"]

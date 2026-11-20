@@ -1,0 +1,8 @@
+{
+  "about": "Reverting an append deletes the appended text. The writer gives the deletion an in fence, the lines around it, so that this revert can be reverted in turn.",
+  "op": "revert",
+  "id": "e-1",
+  "new_id": "r-1",
+  "by": "ana",
+  "at": "2026-11-20T10:00:00Z"
+}

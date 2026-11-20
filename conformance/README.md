@@ -72,4 +72,55 @@ The expectations were written by hand from RFC 0001. They were not captured from
 
 Every finding code is raised by at least one fixture. A test in the reference implementation enforces this.
 
+## Writer fixtures
+
+Each directory under `write/` is one case for a writer:
+
+- `input.md` is the file before the write.
+- `op.json` is the operation.
+- `expected.md` is the file after the write, byte for byte. It is absent when the write must be refused.
+
+```json
+{
+  "about": "What the case shows.",
+  "op": "revert",
+  "id": "Optional. The item acted on or replied to.",
+  "new_id": "Optional. The id for a new item.",
+  "by": "maria",
+  "at": "2026-11-12T09:15:00Z",
+  "for": "Optional. The for attribute.",
+  "note": "Optional.",
+  "on": "Optional. The quote of a comment or an anchor.",
+  "in": "Optional. The scope of that quote.",
+  "edits": [{"in": "Optional.", "replace": "old text", "with": "new text"}],
+  "fails": "Optional. Present when the write must be refused: the reason."
+}
+```
+
+`op` is `comment`, `reply`, `suggest`, `edit`, `accept`, `reject`, `retract`, `resolve`, `reopen`, `anchor` or `revert`. A reply is a comment whose `re` is `id`. `edits` belongs to `suggest` and `edit`.
+
+`id` is the id the person gave. For `revert` it may be any link of a chain, and for `resolve` and `reopen` any comment of the thread. `new_id` and `at` are fixed so that the output can be compared exactly; a writer normally chooses them itself.
+
+A refused write must leave the file unchanged. The reasons are:
+
+| Reason | The write is refused because |
+| --- | --- |
+| `not-found` | No item has the id |
+| `not-a-change` | The item is a comment, or a suggestion that was never accepted |
+| `not-in-effect` | The change is already undone |
+| `text-changed` | The text the change wrote is no longer in the body exactly once |
+| `unscoped-deletion` | The change deleted text with no `in` fence, so the place is not recorded |
+| `id-in-use` | The id for the new record is taken |
+| `quote-not-found` | A quote, or the text an edit replaces, is not in the body |
+| `quote-ambiguous` | It is in the body more than once, and no scope narrows it |
+| `overlap` | Two edits of one change touch the same text |
+| `stale` | The suggestion to accept no longer applies to the body |
+| `empty` | A comment has neither a quote nor a note |
+| `no-change` | The thread is already in the state asked for |
+| `breaks-log` | The new text would run into a record in the file, or would itself be read as a record |
+| `mixed-line-endings` | The file mixes CRLF and LF, so it cannot be written back without changing lines the write did not name |
+| a finding code, such as `not-author`, `wrong-target` or `already-final` | A reader would ignore the record, for the reason that code gives in RFC 0001, section 12.4 |
+
+Every `expected.md` passes `endmark lint --strict`. The reference implementation runs these cases in `crates/endmark-cli/tests/write.rs`.
+
 `crlf.md` has CRLF line endings on purpose. `.gitattributes` stops Git from converting any fixture.

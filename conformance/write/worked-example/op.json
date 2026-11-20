@@ -1,0 +1,9 @@
+{
+  "about": "RFC Appendix A.4: reverting the accepted suggestion s-4q8d. Three edits go back, and c-7f3k is re-pointed.",
+  "op": "revert",
+  "id": "s-4q8d",
+  "new_id": "r-6w2p",
+  "by": "maria",
+  "at": "2026-11-12T09:15:00Z",
+  "note": "The v2 rollout is postponed. Staging is back on 8080."
+}

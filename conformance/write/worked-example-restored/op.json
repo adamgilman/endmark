@@ -1,0 +1,9 @@
+{
+  "about": "RFC Appendix A.5: reverting the revert brings the change back.",
+  "op": "revert",
+  "id": "r-6w2p",
+  "new_id": "r-1k8v",
+  "by": "adam",
+  "at": "2026-11-16T10:00:00Z",
+  "note": "The rollout went ahead today."
+}

@@ -1,0 +1,9 @@
+{
+  "about": "The text the edit wrote was changed afterwards by a tool that left no record. The writer does not guess.",
+  "op": "revert",
+  "id": "e-1",
+  "new_id": "r-1",
+  "by": "ana",
+  "at": "2026-11-20T10:00:00Z",
+  "fails": "text-changed"
+}

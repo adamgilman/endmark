@@ -1,0 +1,9 @@
+{
+  "about": "A comment on the whole document. For an agent, with for.",
+  "op": "comment",
+  "by": "agent:claude",
+  "at": "2026-11-20T10:00:00Z",
+  "new_id": "c-1",
+  "note": "Reads well.",
+  "for": "ana"
+}

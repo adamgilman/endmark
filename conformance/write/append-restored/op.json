@@ -1,0 +1,8 @@
+{
+  "about": "Reverting the revert of an append. Its deletion had a scope, so the text returns to its place.",
+  "op": "revert",
+  "id": "r-1",
+  "new_id": "r-2",
+  "by": "ana",
+  "at": "2026-11-20T10:00:00Z"
+}

@@ -68,7 +68,7 @@ pub(crate) fn append_point(body: &str) -> usize {
 }
 
 /// The range an edit of an open suggestion would replace.
-fn edit_range(body: &str, cuts: &[usize], edit: &Edit) -> Resolved {
+pub(crate) fn edit_range(body: &str, cuts: &[usize], edit: &Edit) -> Resolved {
     if !edit.replace.is_empty() {
         return resolve(body, cuts, &edit.replace, edit.scope.as_deref());
     }
@@ -83,7 +83,7 @@ fn edit_range(body: &str, cuts: &[usize], edit: &Edit) -> Resolved {
     Resolved::At(point, point)
 }
 
-fn applicability(body: &str, cuts: &[usize], edits: &[Edit]) -> Applicability {
+pub(crate) fn applicability(body: &str, cuts: &[usize], edits: &[Edit]) -> Applicability {
     let mut ranges = Vec::with_capacity(edits.len());
     for edit in edits {
         match edit_range(body, cuts, edit) {

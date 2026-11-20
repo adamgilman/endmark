@@ -1,0 +1,9 @@
+{
+  "about": "r-6w2p was itself reverted, so it is already undone. Refused; the message names r-1k8v.",
+  "op": "revert",
+  "id": "r-6w2p",
+  "new_id": "r-1",
+  "by": "ana",
+  "at": "2026-11-20T10:00:00Z",
+  "fails": "not-in-effect"
+}
