@@ -1,0 +1,9 @@
+{
+  "about": "A comment is not a change.",
+  "op": "revert",
+  "id": "c-7f3k",
+  "new_id": "r-1",
+  "by": "ana",
+  "at": "2026-11-20T10:00:00Z",
+  "fails": "not-a-change"
+}

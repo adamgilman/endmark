@@ -1,0 +1,9 @@
+{
+  "about": "The id given is the suggestion, which is in effect again after two reverts. The writer follows the chain and names its tip, r-1k8v, not the suggestion. No note, and a for attribute.",
+  "op": "revert",
+  "id": "s-4q8d",
+  "new_id": "r-3",
+  "by": "agent:claude",
+  "at": "2026-11-20T10:00:00Z",
+  "for": "adam"
+}

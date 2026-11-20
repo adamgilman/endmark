@@ -1,0 +1,9 @@
+{
+  "about": "No item has the id.",
+  "op": "revert",
+  "id": "e-zzzz",
+  "new_id": "r-1",
+  "by": "ana",
+  "at": "2026-11-20T10:00:00Z",
+  "fails": "not-found"
+}

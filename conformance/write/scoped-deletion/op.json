@@ -1,0 +1,9 @@
+{
+  "about": "A deletion with an in fence can be reverted: the scope as it reads now is replaced by the scope as it was written.",
+  "op": "revert",
+  "id": "e-1",
+  "new_id": "r-1",
+  "by": "ana",
+  "at": "2026-11-20T10:00:00Z",
+  "note": "Still experimental."
+}

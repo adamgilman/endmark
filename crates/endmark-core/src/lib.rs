@@ -1,4 +1,4 @@
-//! Reader for Endmark, a collaboration layer for Markdown.
+//! Reader and writer for Endmark, a collaboration layer for Markdown.
 //!
 //! An Endmark file is a Markdown body plus an append-only log of records,
 //! each one an HTML comment that starts `<!--endmark `. This crate finds the
@@ -23,6 +23,7 @@ pub mod escape;
 mod record;
 mod scan;
 mod state;
+pub mod write;
 
 pub use diag::{Code, Diagnostic, Severity};
 pub use scan::START;

@@ -2,7 +2,7 @@
 
 Endmark adds comments, grouped suggestions and a decision history to a Markdown file without changing how the file renders. The Markdown body stays untouched, and all review state lives in an append-only log of HTML-comment records at the end of the file.
 
-**Status: early.** The reader and the linter work. The commands that write records, the renderer and the demo page do not exist yet. The format is defined in [RFC 0001](rfcs/0001-endmark.md), which is open for comment and may still change.
+**Status: early.** The reader, the linter and `endmark revert` work. The other commands that write records, the renderer and the demo page do not exist yet. The format is defined in [RFC 0001](rfcs/0001-endmark.md), which is open for comment and may still change.
 
 ## What a file looks like
 
@@ -85,9 +85,36 @@ notes.md:39: error[wrong-target] r-3h7m: suggestion "s-8k1d" is open, not accept
   hint: check which kind of item this verb acts on
 ```
 
-You can go back and forth as often as you like. Each step is one more `revert` record that names the one before it, so the history is a single chain. You will not have to find the end of the chain yourself: `endmark revert s-4q8d` will follow it and name the right record, and will tell you if the change is already undone.
+You can go back and forth as often as you like. Each step is one more `revert` record that names the one before it, so the history is a single chain.
 
-Today the reader and the linter understand `revert` records. The command that writes them, `endmark revert ID`, comes with the other write commands.
+### The command
+
+`endmark revert FILE ID` writes these records for you. It puts the text back, appends the `revert` record, and re-points any comment whose quoted text it changed.
+
+```sh
+endmark revert --by maria --note "The v2 rollout is postponed." notes.md s-4q8d
+```
+
+```text
+notes.md: reverted s-4q8d: appended r-6w2p (re=s-4q8d); re-pointed c-7f3k
+```
+
+You do not have to find the end of the chain. Name any record in it. If that change is in effect, the command undoes it by reverting the latest record, and says so:
+
+```text
+notes.md: reverted s-4q8d: appended r-8t32 (re=r-1k8v); followed the chain from s-4q8d to r-1k8v
+```
+
+If it is already undone, the command refuses and tells you what would bring it back:
+
+```text
+notes.md: refused[not-in-effect] r-6w2p: "r-6w2p" is already undone; the latest revert in its chain is "r-1k8v"
+  hint: to bring it back, revert "r-1k8v"
+```
+
+- `--by HANDLE` says who is writing. Set `ENDMARK_BY` to avoid repeating it. Agents add `--for PERSON`.
+- `--dry-run` prints the resulting file and writes nothing. So does `-` as the file, which reads standard input.
+- The command refuses, with exit status 1 and the file untouched, when the text has changed since the change was applied, or when the change deleted text without recording where. It never guesses.
 
 ## The linter
 
@@ -118,13 +145,13 @@ Two more commands read a file:
 | Path | Holds |
 | --- | --- |
 | `rfcs/` | The RFC: the format and the plan |
-| `crates/endmark-core/` | The reader: scanner, records, state, anchoring, findings |
+| `crates/endmark-core/` | The reader, and the write operations built so far: scanner, records, state, anchoring, findings, revert |
 | `crates/endmark-cli/` | The `endmark` command |
 | `conformance/` | Fixtures any implementation can be checked against |
 
 ## Planned
 
-- the commands that write records: `comment`, `suggest`, `accept`, `revert` and the rest
+- the other commands that write records: `comment`, `suggest`, `accept` and the rest
 - a reference review renderer
 - a demo page that shows a document beside its raw source and lets you watch the source change as you comment, suggest, accept and revert
 

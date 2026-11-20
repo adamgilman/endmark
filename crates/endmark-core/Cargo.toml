@@ -1,6 +1,6 @@
 [package]
 name = "endmark-core"
-description = "Reader for Endmark, a collaboration layer for Markdown: scanner, records, state and anchoring"
+description = "Reader and writer for Endmark, a collaboration layer for Markdown: scanner, records, state and anchoring"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

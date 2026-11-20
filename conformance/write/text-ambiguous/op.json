@@ -1,0 +1,9 @@
+{
+  "about": "The text the edit wrote now appears twice.",
+  "op": "revert",
+  "id": "e-1",
+  "new_id": "r-1",
+  "by": "ana",
+  "at": "2026-11-20T10:00:00Z",
+  "fails": "text-changed"
+}

@@ -1,11 +1,15 @@
 //! The `endmark` command: lint and inspect Endmark files.
 //!
-//! This is the read path only. The commands that write records come with
-//! milestone M2 of RFC 0001.
+//! The read path is complete. Of the commands that write records, `revert`
+//! is here; the rest come with milestone M2 of RFC 0001.
 
+use std::hash::{BuildHasher, Hasher};
 use std::io::{self, Read, Write};
+use std::path::Path;
 use std::process::ExitCode;
+use std::time::{SystemTime, UNIX_EPOCH};
 
+use endmark_core::write::{self, Stamp};
 use endmark_core::{Applicability, Detail, Diagnostic, Document, Item, Landing};
 use serde_json::{json, Map, Value};
 
@@ -16,6 +20,7 @@ Usage:
   endmark lint [--strict] [--format text|json] FILE...
   endmark status [--format text|json] FILE
   endmark body FILE
+  endmark revert [--by HANDLE] [--for PERSON] [--note TEXT] [--dry-run] FILE ID
   endmark --help | --version
 
 FILE may be - to read standard input.
@@ -25,15 +30,27 @@ Commands:
            that need attention. Never writes.
   status   List every item with its state.
   body     Print the document without its records.
+  revert   Undo a change that was applied to the document: an accepted
+           suggestion, an edit, or an earlier revert. The text goes back,
+           nothing is erased, and a revert record is appended. To bring the
+           change back, revert again. ID may be any record of the chain;
+           the command finds the latest one itself.
 
 Options:
   --strict         lint: exit 1 on warnings as well as errors
   --format FORMAT  text (default) or json
+  --by HANDLE      revert: who is writing. Default: $ENDMARK_BY
+  --for PERSON     revert: the person an agent is acting for
+  --note TEXT      revert: why, in Markdown
+  --dry-run        revert: print the resulting file, do not write it
+  --id ID          revert: id for the new record. Default: random
+  --at TIME        revert: RFC 3339 UTC time. Default: now
 
 Exit status:
-  0  no errors
-  1  at least one error, or a warning under --strict
-  2  a file could not be read, or the arguments were wrong
+  0  no errors; revert: the file was written
+  1  at least one error, or a warning under --strict; revert: refused,
+     and nothing was written
+  2  a file could not be read or written, or the arguments were wrong
 ";
 
 fn main() -> ExitCode {
@@ -109,6 +126,7 @@ fn run(args: &[String]) -> Result<ExitCode, String> {
         "lint" => lint(parse_options(rest, true)?),
         "status" => status(parse_options(rest, false)?),
         "body" => body(parse_options(rest, false)?),
+        "revert" => revert(rest),
         other => Err(format!("unknown command \"{other}\"; see endmark --help")),
     }
 }
@@ -224,6 +242,168 @@ fn finding_json(d: &Diagnostic) -> Value {
         "message": d.message,
         "hint": d.hint(),
     })
+}
+
+// ---- revert ----
+
+/// The current time as RFC 3339 in UTC, to the second.
+fn now_utc() -> String {
+    let secs = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs()) as i64;
+    let (days, rem) = (secs.div_euclid(86_400), secs.rem_euclid(86_400));
+    // Days since 1970-01-01 to a civil date (Howard Hinnant's algorithm).
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!(
+        "{year:04}-{month:02}-{day:02}T{:02}:{:02}:{:02}Z",
+        rem / 3_600,
+        rem % 3_600 / 60,
+        rem % 60
+    )
+}
+
+/// A type letter, a hyphen and four random base-32 characters (RFC 5.1),
+/// not already used in the file.
+fn fresh_id(letter: char, doc: &Document) -> String {
+    const ALPHABET: &[u8] = b"0123456789abcdefghjkmnpqrstvwxyz";
+    loop {
+        // The standard library seeds each RandomState from the operating system.
+        let mut bits = std::collections::hash_map::RandomState::new().build_hasher().finish();
+        let mut id = format!("{letter}-");
+        for _ in 0..4 {
+            id.push(ALPHABET[(bits & 31) as usize] as char);
+            bits >>= 5;
+        }
+        if doc.item(&id).is_none() {
+            return id;
+        }
+    }
+}
+
+/// Replaces a file in one step (RFC 9.2), unless it changed since it was
+/// read (RFC 9.5).
+fn replace_file(path: &str, read: &str, new: &str) -> Result<(), String> {
+    let fail = |e: io::Error| format!("{path}: {e}");
+    // Write through a symbolic link, not over it.
+    let real = std::fs::canonicalize(path).map_err(fail)?;
+    let name = real
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let temp = real.with_file_name(format!(".{name}.endmark-{}.tmp", std::process::id()));
+    let written = std::fs::write(&temp, new)
+        .and_then(|()| std::fs::metadata(&real))
+        .and_then(|meta| std::fs::set_permissions(&temp, meta.permissions()))
+        .map_err(fail)
+        .and_then(|()| match std::fs::read(&real) {
+            Ok(current) if current == read.as_bytes() => Ok(()),
+            Ok(_) => Err(format!(
+                "{path}: the file changed while this command ran; nothing was written"
+            )),
+            Err(e) => Err(fail(e)),
+        })
+        .and_then(|()| std::fs::rename(&temp, &real).map_err(fail));
+    if written.is_err() {
+        let _ = std::fs::remove_file(Path::new(&temp));
+    }
+    written
+}
+
+fn revert(args: &[String]) -> Result<ExitCode, String> {
+    let (mut by, mut person, mut note, mut id, mut at) = (std::env::var("ENDMARK_BY").ok(), None, None, None, None);
+    let mut dry_run = false;
+    let mut positional: Vec<&String> = Vec::new();
+    let mut only_positional = false;
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        if only_positional || arg == "-" || !arg.starts_with('-') {
+            positional.push(arg);
+            continue;
+        }
+        let (name, inline) = match arg.split_once('=') {
+            Some((name, value)) if name.starts_with("--") => (name, Some(value.to_string())),
+            _ => (arg.as_str(), None),
+        };
+        let mut value = || {
+            inline
+                .clone()
+                .or_else(|| it.next().cloned())
+                .ok_or(format!("{name} needs a value"))
+        };
+        match name {
+            "--" => only_positional = true,
+            "--dry-run" => dry_run = true,
+            "--by" => by = Some(value()?),
+            "--for" => person = Some(value()?),
+            "--note" | "-m" => note = Some(value()?),
+            "--id" => id = Some(value()?),
+            "--at" => at = Some(value()?),
+            _ => return Err(format!("unknown option \"{arg}\"; see endmark --help")),
+        }
+    }
+    let [path, target] = positional.as_slice() else {
+        return Err("revert needs a file and the id of the change to undo; see endmark --help".into());
+    };
+    let by = by
+        .filter(|b| !b.is_empty())
+        .ok_or("revert needs to know who is writing: pass --by HANDLE or set ENDMARK_BY")?;
+
+    let source = read(path)?;
+    let new_id = id.unwrap_or_else(|| fresh_id('r', &endmark_core::parse(&source)));
+    let at = at.unwrap_or_else(now_utc);
+    let stamp = Stamp {
+        by: &by,
+        at: &at,
+        on_behalf_of: person.as_deref(),
+        note: note.as_deref().unwrap_or(""),
+    };
+    let done = match write::revert(&source, target, &new_id, &stamp) {
+        Ok(done) => done,
+        Err(e) => {
+            eprintln!(
+                "{}: refused[{}] {target}: {e}\n  hint: {}",
+                display_name(path),
+                e.code(),
+                e.hint()
+            );
+            return Ok(ExitCode::from(1));
+        }
+    };
+
+    let to_stdout = dry_run || path.as_str() == "-";
+    if to_stdout {
+        io::stdout()
+            .write_all(done.source.as_bytes())
+            .map_err(|e| format!("standard output: {e}"))?;
+    } else {
+        replace_file(path, &source, &done.source)?;
+    }
+    // The summary goes to standard error when the file itself is on standard output.
+    let mut summary = format!(
+        "{}: {} {target}: appended {} (re={})",
+        display_name(path),
+        if dry_run { "would revert" } else { "reverted" },
+        done.revert_id,
+        done.target
+    );
+    if &done.target != *target {
+        summary.push_str(&format!("; followed the chain from {target} to {}", done.target));
+    }
+    if !done.reanchored.is_empty() {
+        summary.push_str(&format!("; re-pointed {}", done.reanchored.join(", ")));
+    }
+    if to_stdout {
+        eprintln!("{summary}");
+    } else {
+        println!("{summary}");
+    }
+    Ok(ExitCode::SUCCESS)
 }
 
 // ---- body ----

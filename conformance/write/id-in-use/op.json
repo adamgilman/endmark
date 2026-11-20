@@ -1,0 +1,9 @@
+{
+  "about": "The id chosen for the new record is taken.",
+  "op": "revert",
+  "id": "e-0h5n",
+  "new_id": "c-7f3k",
+  "by": "ana",
+  "at": "2026-11-20T10:00:00Z",
+  "fails": "id-in-use"
+}

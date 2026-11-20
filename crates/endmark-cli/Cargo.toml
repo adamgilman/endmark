@@ -1,6 +1,6 @@
 [package]
 name = "endmark-cli"
-description = "The endmark command: lint and inspect Endmark files"
+description = "The endmark command: lint, inspect and revert changes in Endmark files"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

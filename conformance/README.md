@@ -72,4 +72,41 @@ The expectations were written by hand from RFC 0001. They were not captured from
 
 Every finding code is raised by at least one fixture. A test in the reference implementation enforces this.
 
+## Writer fixtures
+
+Each directory under `write/` is one case for a writer:
+
+- `input.md` is the file before the write.
+- `op.json` is the operation.
+- `expected.md` is the file after the write, byte for byte. It is absent when the write must be refused.
+
+```json
+{
+  "about": "What the case shows.",
+  "op": "revert",
+  "id": "s-4q8d",
+  "new_id": "r-6w2p",
+  "by": "maria",
+  "at": "2026-11-12T09:15:00Z",
+  "for": "Optional. The for attribute.",
+  "note": "Optional.",
+  "fails": "Optional. Present when the write must be refused: the reason."
+}
+```
+
+`id` is the id the person gave, which may be any link of a chain. `new_id` and `at` are fixed so that the output can be compared exactly; a writer normally chooses them itself.
+
+A refused write must leave the file unchanged. The reasons are:
+
+| Reason | The write is refused because |
+| --- | --- |
+| `not-found` | No item has the id |
+| `not-a-change` | The item is a comment, or a suggestion that was never accepted |
+| `not-in-effect` | The change is already undone |
+| `text-changed` | The text the change wrote is no longer in the body exactly once |
+| `unscoped-deletion` | The change deleted text with no `in` fence, so the place is not recorded |
+| `id-in-use` | The id for the new record is taken |
+
+Every `expected.md` passes `endmark lint --strict`. The reference implementation runs these cases in `crates/endmark-cli/tests/write.rs`.
+
 `crlf.md` has CRLF line endings on purpose. `.gitattributes` stops Git from converting any fixture.
