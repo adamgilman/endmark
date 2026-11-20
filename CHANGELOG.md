@@ -17,6 +17,7 @@ The first version. The format is defined in [RFC 0001](rfcs/0001-endmark.md) and
 - `status`, `log` and `body`: read a file.
 - One command per verb to write records. A write that a reader would ignore is refused and leaves the file untouched.
 - `revert` undoes an applied change on the record, and can be reverted in turn.
+- `skill`: prints a SKILL.md document that tells an AI agent what Endmark is and how to use the command.
 
 **The `endmark-core` crate**
 

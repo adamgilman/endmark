@@ -3,3 +3,4 @@ conformance/*.md -text
 conformance/write/*/*.md -text
 # Embedded in tests with include_str!, and matched against LF text.
 crates/endmark-core/tests/repair/*.md -text
+crates/endmark-cli/src/skill.md -text

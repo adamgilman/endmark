@@ -204,6 +204,17 @@ notes.md: refused[quote-ambiguous]: "relay" is in the document more than once
 
 After `accept`, `edit` or `revert`, the command also tells you which open comments lost their quoted text and which open suggestions no longer apply.
 
+## Using Endmark from an AI agent
+
+`endmark skill` prints a SKILL.md document for AI agents: what Endmark is, the rules an agent must keep to, a command for each task, and what to do when a write is refused. An agent that finds the binary can run it and read the output. To install it as a skill:
+
+```sh
+mkdir -p .claude/skills/endmark
+endmark skill > .claude/skills/endmark/SKILL.md
+```
+
+The text ships inside the binary, so it describes the version you have. The tests run its example session and check every command, option and code it names against the tool.
+
 ## Layout
 
 | Path | Holds |

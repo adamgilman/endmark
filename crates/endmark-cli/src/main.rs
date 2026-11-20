@@ -1,7 +1,8 @@
 //! The `endmark` command: lint and inspect Endmark files.
 //!
-//! Commands that read (`lint`, `status`, `body`, `log`) and commands that
-//! write, one per verb of RFC 0001.
+//! Commands that read (`lint`, `status`, `body`, `log`), commands that
+//! write, one per verb of RFC 0001, and `skill`, which prints instructions
+//! for AI agents.
 
 use std::hash::{BuildHasher, Hasher};
 use std::io::{self, Read, Write};
@@ -33,7 +34,11 @@ Usage:
   endmark revert  [--note TEXT] FILE ID
   endmark repair  [--min-score N] FILE [ID...]
 
+  endmark skill
   endmark --help | --version
+
+AI agents: run endmark skill first. It prints instructions for using
+this tool, as a SKILL.md document.
 
 FILE may be - to read standard input. A command that writes then prints
 the resulting file to standard output.
@@ -65,6 +70,10 @@ revert change the document itself.
            the document clearly stands out. Writes an anchor record for
            each. Run lint --suggest first to see what it would do.
 
+For AI agents:
+  skill    Print what Endmark is and how to use this tool, as a SKILL.md
+           document. To install it as a skill, write it to a file:
+           endmark skill > .claude/skills/endmark/SKILL.md
 
 Quoted text (--on, --in, --replace) is Markdown source, exactly as in
 the file, and must match exactly once. --in gives surrounding text to
@@ -172,10 +181,25 @@ fn run(args: &[String]) -> Result<ExitCode, String> {
         "body" => body(parse_options(rest, false)?),
         "log" => log(parse_options(rest, false)?),
         "repair" => repair(rest),
+        "skill" => skill(rest),
         "comment" | "reply" | "suggest" | "edit" | "accept" | "reject" | "retract" | "resolve" | "reopen"
         | "anchor" | "revert" => write_command(command, rest),
         other => Err(format!("unknown command \"{other}\"; see endmark --help")),
     }
+}
+
+/// Instructions for an AI agent, as a SKILL.md document. The tests in
+/// `tests/skill.rs` hold it to what this file does.
+const SKILL: &str = include_str!("skill.md");
+
+fn skill(args: &[String]) -> Result<ExitCode, String> {
+    if !args.is_empty() {
+        return Err("skill takes no arguments; see endmark --help".into());
+    }
+    io::stdout()
+        .write_all(SKILL.as_bytes())
+        .map_err(|e| format!("standard output: {e}"))?;
+    Ok(ExitCode::SUCCESS)
 }
 
 fn read(path: &str) -> Result<String, String> {
