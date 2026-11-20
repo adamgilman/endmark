@@ -87,8 +87,11 @@ Should this be configurable?
 
 <!--endmark accept s-4q8d by=adam at=2026-11-11T17:40:00Z -->
 
-<!--endmark anchor c-7f3k by=adam at=2026-11-11T17:40:00Z
+<!--endmark anchor c-7f3k by=adam at=2026-11-11T17:40:00Z line=3
 ```on
 port 8443
+```
+```near
+Relay forwards webhook events to internal consumers. It listens on port 8443 by default.
 ```
 -->

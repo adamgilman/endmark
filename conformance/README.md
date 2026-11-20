@@ -45,6 +45,7 @@ The expectations were written by hand from RFC 0001. They were not captured from
 | `thread` | `open` or `resolved`. On thread roots only. |
 | `root` | The id of the thread's root. On replies only. |
 | `anchor` | Comments: `attached`, `detached`, `ambiguous` or `unquoted` |
+| `hint` | Comments with guideposts: `line`, a number or `null`, and `near`, the text of the `near` fence or `null` (RFC 6.1). Absent when the quote in force has neither. |
 | `status` | Open suggestion: `applicable` or `stale`. Accepted suggestion, edit or revert: `located` or `unlocatable` while the change is in effect, and `reverted` while it is not. Absent for rejected and retracted suggestions. |
 | `reverted_by` | The id of the revert that names this change. Absent or `null` when there is none. It stays set when that revert is itself reverted; `status` then says the change is in effect again. |
 | `events` | The action records that took effect on the item, in file order, each with `verb`, `line`, `by`, `at`, `for` and `note`. A revert adds a `revert` event to the change it undoes. An array is compared as a whole, so give every key of every event. |
@@ -97,6 +98,8 @@ Each directory under `write/` is one case for a writer:
   "fails": "Optional. Present when the write must be refused: the reason."
 }
 ```
+
+A comment or anchor that a writer adds carries guideposts (RFC 6.1): `line=` and, when the lines around the quote say more than the quote, a `near` fence. The expected files include them. `endmark repair` has no cases here, because how a tool finds a repair is not part of the format.
 
 `op` is `comment`, `reply`, `suggest`, `edit`, `accept`, `reject`, `retract`, `resolve`, `reopen`, `anchor` or `revert`. A reply is a comment whose `re` is `id`. `edits` belongs to `suggest` and `edit`.
 

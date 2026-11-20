@@ -143,6 +143,26 @@ notes.md:71: error[early-close] s-4q8d: content contains "-->" before the termin
 checked 1 file: 1 error, 0 warnings
 ```
 
+### When a comment loses its place
+
+A comment points at text by quoting it. If someone rewrites that text, the comment is reported as `detached`, and if the text now appears twice, as `ambiguous`. Endmark never guesses where such a comment belongs. It can suggest:
+
+```sh
+endmark lint --suggest notes.md
+```
+
+```text
+notes.md:21: warning[detached] c-7f3k: quote "port 8080" is not in the body
+  hint: append an anchor record with a quote that is in the body, or resolve the thread
+  repair: line 5, 87% sure: the lines the quote was in; the quoted words themselves are gone. To accept it: endmark repair notes.md c-7f3k
+```
+
+`endmark repair notes.md` accepts every suggestion it is at least 80% sure of, by appending an `anchor` record for each. `--min-score` changes the 80, `--dry-run` shows the result without writing, and naming ids limits it to those comments.
+
+How good are the suggestions? Replayed against the real revision histories of 15 public documents, about 99.5% of the ones `repair` writes by default were right, and when the search fails it mostly says nothing rather than something wrong. The known weak spot is a deleted paragraph that has a near-identical twin. [eval/](eval/README.md) has the method and the numbers.
+
+The suggestions work because each comment also stores **guideposts**: the line its quote was on (`line=13`) and the lines around it (a `near` fence). They are deliberately imprecise. Lines shift and text gets edited, so guideposts are never used to decide where a comment is, only to propose where it went. A comment moves when an `anchor` record says so, and that record is in the history like everything else.
+
 Three more commands read a file:
 
 - `endmark status FILE` lists every comment, suggestion, edit and revert with its state.
@@ -173,7 +193,7 @@ notes.md: accepted s-4q8d; re-pointed c-7f3k
 - **Several edits in one suggestion**: repeat `--replace` and `--with`. They are accepted or rejected together.
 - **Agents** add `--for PERSON` to name who they act for.
 - **Trying it out**: `--dry-run` prints the resulting file and writes nothing.
-- `retract` withdraws your own comment or suggestion, `reopen` opens a thread again, `edit` makes a change directly and logs it, and `anchor` points a comment at new text after its quote went missing.
+- `retract` withdraws your own comment or suggestion, `reopen` opens a thread again, `edit` makes a change directly and logs it, and `anchor` points a comment at new text after its quote went missing (`repair` does that for you where it can).
 
 A command that cannot do what was asked changes nothing and says why:
 
@@ -197,6 +217,7 @@ After `accept`, `edit` or `revert`, the command also tells you which open commen
 | `packages/render/` | The review renderer, in TypeScript |
 | `demo/` | The demo page |
 | `compat/` | The check that plain Markdown renderers hide records |
+| `eval/` | A measurement of repair suggestions against real revision histories |
 
 ## The demo page
 

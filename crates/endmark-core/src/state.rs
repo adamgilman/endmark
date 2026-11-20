@@ -164,6 +164,7 @@ fn new_comment(rec: &Record, items: &[Item], index: &HashMap<String, usize>, dia
     Comment {
         quote: rec.quote.clone(),
         original_quote: rec.quote.clone(),
+        hint: rec.hint.clone(),
         retracted: false,
         root,
         thread,
@@ -233,6 +234,7 @@ fn act(item: &mut Item, rec: &Record) -> Result<(), (Code, String)> {
                 return Err((Code::AlreadyFinal, format!("comment \"{}\" is retracted", rec.id)));
             }
             c.quote = rec.quote.clone();
+            c.hint = rec.hint.clone();
             Ok(())
         }
         _ => Err((

@@ -10,9 +10,11 @@ use std::fmt;
 
 use crate::anchor::{self, Resolved};
 use crate::escape::escape;
+use crate::repair::context_of;
 use crate::scan::{self, Scan, START};
 use crate::{
-    parse, Anchor, Applicability, Detail, Document, Edit, Item, Quote, StaleReason, SuggestionState, ThreadState, Verb,
+    parse, Anchor, Applicability, Detail, Document, Edit, Hint, Item, Quote, StaleReason, SuggestionState, ThreadState,
+    Verb,
 };
 
 /// Who is writing, when, and what they have to say.
@@ -250,12 +252,14 @@ impl File {
             .ok_or_else(|| WriteError::NotFound { id: id.to_string() })
     }
 
-    fn resolve_quote(&self, quote: &Quote) -> Result<(), WriteError> {
+    /// Checks that a quote matches exactly once, and returns the guideposts
+    /// to store with it (RFC 6.1).
+    fn resolve_quote(&self, quote: &Quote) -> Result<Hint, WriteError> {
         if quote.on.is_empty() || quote.scope.as_deref() == Some("") {
             return Err(WriteError::Empty { what: "the quote" });
         }
         match anchor::resolve(&self.scan.body, &self.scan.cuts, &quote.on, quote.scope.as_deref()) {
-            Resolved::At(..) => Ok(()),
+            Resolved::At(start, end) => Ok(guideposts(&self.scan, &quote.on, start, end)),
             Resolved::Detached => Err(WriteError::QuoteNotFound { text: quote.on.clone() }),
             Resolved::Ambiguous => Err(WriteError::QuoteAmbiguous { text: quote.on.clone() }),
         }
@@ -350,7 +354,12 @@ impl File {
             let rescanned = scan::scan(&out);
             for item in &self.doc.items {
                 if let Some(quote) = repair(item, &middle, &rescanned, edits, replaced, landed) {
-                    append(&mut out, &anchor_record(&item.id, stamp, &quote, ""));
+                    let hint =
+                        match anchor::resolve(&rescanned.body, &rescanned.cuts, &quote.on, quote.scope.as_deref()) {
+                            Resolved::At(start, end) => guideposts(&rescanned, &quote.on, start, end),
+                            _ => Hint::default(),
+                        };
+                    append(&mut out, &anchor_record(&item.id, stamp, &quote, &hint, ""));
                     reanchored.push(item.id.clone());
                 }
             }
@@ -473,19 +482,41 @@ fn change_record(verb: &str, id: &str, re: Option<&str>, stamp: &Stamp, edits: &
 }
 
 /// A `comment` record: the quote, then the note.
-fn comment_record(id: &str, re: Option<&str>, stamp: &Stamp, quote: Option<&Quote>) -> String {
+/// Where a quote is at the time of writing: its line, and the lines around
+/// it. Stored with the quote as guideposts. They are never used to match.
+fn guideposts(scan: &Scan, on: &str, start: usize, end: usize) -> Hint {
+    let body = &scan.body;
+    // A line number is a line of the file. Past the first record the body
+    // and the file no longer line up, so none is given there.
+    let in_file = scan.cuts.first().map_or(true, |&first| end <= first);
+    let near = context_of(body, start, end);
+    Hint {
+        line: in_file.then(|| body[..start].matches('\n').count() + 1),
+        near: (near != on).then(|| near.to_string()),
+    }
+}
+
+fn push_line(out: &mut String, hint: &Hint) {
+    if let Some(line) = hint.line {
+        out.push_str(&format!(" line={line}"));
+    }
+}
+
+fn comment_record(id: &str, re: Option<&str>, stamp: &Stamp, quote: Option<&Quote>, hint: &Hint) -> String {
     let mut out = header("comment", id, re, stamp);
+    push_line(&mut out, hint);
     out.push('\n');
-    push_quote(&mut out, quote);
+    push_quote(&mut out, quote, hint);
     push_note(&mut out, stamp.note);
     out.push_str("-->\n");
     out
 }
 
-fn anchor_record(id: &str, stamp: &Stamp, quote: &Quote, note: &str) -> String {
+fn anchor_record(id: &str, stamp: &Stamp, quote: &Quote, hint: &Hint, note: &str) -> String {
     let mut out = header("anchor", id, None, stamp);
+    push_line(&mut out, hint);
     out.push('\n');
-    push_quote(&mut out, Some(quote));
+    push_quote(&mut out, Some(quote), hint);
     push_note(&mut out, note);
     out.push_str("-->\n");
     out
@@ -504,12 +535,15 @@ fn action_record(verb: &str, id: &str, stamp: &Stamp) -> String {
     out
 }
 
-fn push_quote(out: &mut String, quote: Option<&Quote>) {
+fn push_quote(out: &mut String, quote: Option<&Quote>, hint: &Hint) {
     if let Some(quote) = quote {
         if let Some(scope) = &quote.scope {
             fence(out, "in", scope);
         }
         fence(out, "on", &quote.on);
+        if let Some(near) = &hint.near {
+            fence(out, "near", near);
+        }
     }
 }
 
@@ -612,13 +646,14 @@ pub fn comment(
     if let Some(re) = re {
         file.item(re)?;
     }
-    if let Some(quote) = quote {
-        file.resolve_quote(quote)?;
-    }
+    let hint = match quote {
+        Some(quote) => file.resolve_quote(quote)?,
+        None => Hint::default(),
+    };
     if quote.is_none() && stamp.note.trim().is_empty() {
         return Err(WriteError::Empty { what: "the comment" });
     }
-    let record = comment_record(new_id, re, stamp, quote);
+    let record = comment_record(new_id, re, stamp, quote, &hint);
     file.finish(file.text.clone(), &record, stamp, None, new_id, |after| {
         let item = after.item(new_id).ok_or(NOT_FOUND)?;
         match &item.detail {
@@ -778,8 +813,8 @@ pub fn anchor(source: &str, id: &str, stamp: &Stamp, quote: &Quote) -> Result<Wr
     let stamp = &Stamp { note: &note, ..*stamp };
     let file = open(source, stamp, None)?;
     file.item(id)?;
-    file.resolve_quote(quote)?;
-    let record = anchor_record(id, stamp, quote, stamp.note);
+    let hint = file.resolve_quote(quote)?;
+    let record = anchor_record(id, stamp, quote, &hint, stamp.note);
     file.finish(file.text.clone(), &record, stamp, None, id, |after| {
         match after.item(id).map(|i| &i.detail) {
             Some(Detail::Comment(c)) if c.quote.as_ref() == Some(quote) => Ok(()),

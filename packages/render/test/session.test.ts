@@ -51,9 +51,12 @@ port ${back ? 8080 : 8443}
 \`\`\`
 -->
 
-<!--endmark anchor c-7f3k by=you at=${at}
+<!--endmark anchor c-7f3k by=you at=${at} line=3
 \`\`\`on
 port ${back ? 8080 : 8443}
+\`\`\`
+\`\`\`near
+Relay forwards webhook events to internal consumers. It listens on port ${back ? 8080 : 8443} by default.
 \`\`\`
 -->
 `;
@@ -113,7 +116,7 @@ test("comment, reply, resolve, reopen, suggest, reject and retract append record
   const body = s.document().body;
 
   expect(s.comment({ quote: "webhook events", scopes: [], note: "Which events?" }).ok).toBe(true);
-  expect(s.source).toContain("<!--endmark comment c-t001 by=you at=2026-11-20T10:00:00Z\n```on\nwebhook events\n```\nWhich events?\n-->");
+  expect(s.source).toContain("<!--endmark comment c-t001 by=you at=2026-11-20T10:00:00Z line=3\n```on\nwebhook events\n```\n```near\nRelay forwards webhook events to internal consumers. It listens on port 8080 by default.\n```\nWhich events?\n-->");
 
   expect(s.reply("c-7f3k", "Agreed.").ok).toBe(true);
   expect(s.source).toContain("<!--endmark comment c-t002 re=c-7f3k by=you");
@@ -141,7 +144,7 @@ test("a quote that is not unique is retried inside the scopes the renderer gave"
   const outcome = s.comment({ quote: "re", scopes: ["are retried", line], note: "Which?" });
   expect(outcome).toMatchObject({ ok: false, code: "quote-ambiguous" });
   expect(s.comment({ quote: "3", scopes: [line], note: "Seconds?" }).ok).toBe(true);
-  expect(s.source).toContain("```in\n" + line + "\n```\n```on\n3\n```\nSeconds?");
+  expect(s.source).toContain("```in\n" + line + "\n```\n```on\n3\n```\n```near\n" + line + "\n```\nSeconds?");
 });
 
 test("an id that is in use is drawn again", () => {
@@ -166,7 +169,7 @@ test("a direct body edit writes no record and detaches the comment on the edited
 test("default ids have a type letter, a hyphen and four characters of the alphabet", () => {
   const s = new Session(core, fixture("worked-example.md"));
   expect(s.comment({ quote: "webhook events", scopes: [], note: "n" }).ok).toBe(true);
-  const match = /<!--endmark comment (\S+) by=you at=(\S+)\n/.exec(s.source.slice(fixture("worked-example.md").length))!;
+  const match = /<!--endmark comment (\S+) by=you at=(\S+) line=3\n/.exec(s.source.slice(fixture("worked-example.md").length))!;
   expect(match[1]).toMatch(/^c-[0-9abcdefghjkmnpqrstvwxyz]{4}$/);
   expect(match[2]).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
 });

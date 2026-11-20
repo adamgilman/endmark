@@ -1,0 +1,23 @@
+{
+  "about": "Guideposts are never used to match. The quote is gone, so the comment is detached, although its line hint and its near fence point at a likely place.",
+  "items": [
+    {
+      "id": "c-1",
+      "kind": "comment",
+      "state": "live",
+      "thread": "open",
+      "anchor": "detached",
+      "hint": {
+        "line": 2,
+        "near": "Relay forwards webhook events.\nIt listens on port 8080 by default."
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "line": 6,
+      "code": "detached",
+      "id": "c-1"
+    }
+  ]
+}

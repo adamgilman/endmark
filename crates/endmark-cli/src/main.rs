@@ -10,15 +10,16 @@ use std::process::ExitCode;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use endmark_core::json;
+use endmark_core::repair::Candidate;
 use endmark_core::write::{self, Stamp};
-use endmark_core::{Applicability, Detail, Document, Edit, Item, Landing, Quote, Verb};
+use endmark_core::{Applicability, Code, Detail, Document, Edit, Item, Landing, Quote, Verb};
 use serde_json::{json, Value};
 
 const USAGE: &str = "\
 endmark: comments, suggestions and history for Markdown files
 
 Usage:
-  endmark lint [--strict] [--format text|json] FILE...
+  endmark lint [--strict] [--suggest] [--format text|json] FILE...
   endmark status [--format text|json] FILE
   endmark log [--format text|json] FILE
   endmark body FILE
@@ -30,6 +31,7 @@ Usage:
   endmark accept | reject | retract | resolve | reopen [--note TEXT] FILE ID
   endmark anchor  --on TEXT [--in TEXT] FILE ID
   endmark revert  [--note TEXT] FILE ID
+  endmark repair  [--min-score N] FILE [ID...]
 
   endmark --help | --version
 
@@ -59,6 +61,11 @@ revert change the document itself.
            The text goes back and nothing is erased. To bring the change
            back, revert again. ID may be any record of the chain.
 
+  repair   Re-point comments that lost their place, where one place in
+           the document clearly stands out. Writes an anchor record for
+           each. Run lint --suggest first to see what it would do.
+
+
 Quoted text (--on, --in, --replace) is Markdown source, exactly as in
 the file, and must match exactly once. --in gives surrounding text to
 search within. An empty --with deletes; an empty --replace appends to
@@ -66,6 +73,9 @@ the end of the document.
 
 Options:
   --strict         lint: exit 1 on warnings as well as errors
+  --suggest        lint: for a comment that lost its place, say where it
+                   probably belongs. Nothing is changed.
+  --min-score N    repair: how sure to be, 0 to 100. Default: 80
   --format FORMAT  text (default) or json
   --by HANDLE      who is writing. Default: $ENDMARK_BY
   --for PERSON     the person an agent is acting for
@@ -102,6 +112,7 @@ enum Format {
 
 struct Options {
     strict: bool,
+    suggest: bool,
     format: Format,
     files: Vec<String>,
 }
@@ -109,6 +120,7 @@ struct Options {
 fn parse_options(args: &[String], allow_strict: bool) -> Result<Options, String> {
     let mut options = Options {
         strict: false,
+        suggest: false,
         format: Format::Text,
         files: Vec::new(),
     };
@@ -126,6 +138,8 @@ fn parse_options(args: &[String], allow_strict: bool) -> Result<Options, String>
             only_files = true;
         } else if arg == "--strict" && allow_strict {
             options.strict = true;
+        } else if arg == "--suggest" && allow_strict {
+            options.suggest = true;
         } else if arg == "--format" {
             let value = it.next().ok_or("--format needs a value: text or json")?;
             options.format = format_value(value)?;
@@ -157,6 +171,7 @@ fn run(args: &[String]) -> Result<ExitCode, String> {
         "status" => status(parse_options(rest, false)?),
         "body" => body(parse_options(rest, false)?),
         "log" => log(parse_options(rest, false)?),
+        "repair" => repair(rest),
         "comment" | "reply" | "suggest" | "edit" | "accept" | "reject" | "retract" | "resolve" | "reopen"
         | "anchor" | "revert" => write_command(command, rest),
         other => Err(format!("unknown command \"{other}\"; see endmark --help")),
@@ -217,6 +232,16 @@ fn lint(options: Options) -> Result<ExitCode, String> {
         };
         let doc = endmark_core::parse(&source);
         let name = display_name(path);
+        // Repair proposals are only worked out when asked for (RFC 6.1).
+        let repairs = if options.suggest {
+            endmark_core::repair::candidates(&source)
+        } else {
+            Vec::new()
+        };
+        let repair_for = |d: &endmark_core::Diagnostic| {
+            let unanchored = matches!(d.code, Code::Detached | Code::Ambiguous);
+            repairs.iter().find(|c| unanchored && Some(&c.id) == d.id.as_ref())
+        };
         checked += 1;
         errors += doc.errors();
         warnings += doc.warnings();
@@ -228,7 +253,13 @@ fn lint(options: Options) -> Result<ExitCode, String> {
                     "file": name,
                     "errors": doc.errors(),
                     "warnings": doc.warnings(),
-                    "findings": doc.diagnostics.iter().map(json::finding).collect::<Vec<_>>(),
+                    "findings": doc.diagnostics.iter().map(|d| {
+                        let mut finding = json::finding(d);
+                        if let Some(c) = repair_for(d) {
+                            finding["repair"] = repair_json(c);
+                        }
+                        finding
+                    }).collect::<Vec<_>>(),
                 })
             ),
             Format::Text => doc.diagnostics.iter().try_for_each(|d| {
@@ -241,7 +272,18 @@ fn lint(options: Options) -> Result<ExitCode, String> {
                     d.code.as_str(),
                     d.message,
                     d.hint()
-                )
+                )?;
+                match repair_for(d) {
+                    Some(c) => writeln!(
+                        out,
+                        "  repair: line {}, {}% sure: {}. To accept it: endmark repair {name} {}",
+                        c.line,
+                        c.score,
+                        c.reason.describe(),
+                        c.id
+                    ),
+                    None => Ok(()),
+                }
             }),
         };
         written.map_err(|e| format!("standard output: {e}"))?;
@@ -651,6 +693,139 @@ fn log(options: Options) -> Result<ExitCode, String> {
         }
     };
     written.map_err(|e| format!("standard output: {e}"))?;
+    Ok(ExitCode::SUCCESS)
+}
+
+// ---- repair ----
+
+fn repair_json(c: &Candidate) -> Value {
+    json!({
+        "line": c.line,
+        "score": c.score,
+        "reason": c.reason.as_str(),
+        "on": c.quote.on,
+        "in": c.quote.scope,
+    })
+}
+
+/// Writes an `anchor` record for each unanchored comment that has a clear
+/// candidate. The reader stays strict: this command is the recorded act
+/// that moves a comment (RFC 6.1).
+fn repair(args: &[String]) -> Result<ExitCode, String> {
+    let mut min_score = 80u8;
+    let mut rest: Vec<String> = Vec::new();
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        let value = match arg.split_once('=') {
+            Some(("--min-score", v)) => Some(v.to_string()),
+            _ if arg == "--min-score" => Some(it.next().cloned().ok_or("--min-score needs a value")?),
+            _ => None,
+        };
+        match value {
+            Some(v) => {
+                min_score = v
+                    .parse()
+                    .ok()
+                    .filter(|n| *n <= 100)
+                    .ok_or("--min-score takes a number from 0 to 100")?;
+            }
+            None => rest.push(arg.clone()),
+        }
+    }
+    let parsed = parse_write_args(&rest)?;
+    if !parsed.texts.is_empty() || parsed.id.is_some() {
+        return Err("repair takes no --on, --in, --replace, --with or --id".into());
+    }
+    let Some((path, ids)) = parsed.positional.split_first() else {
+        return Err("repair needs a file; see endmark --help".into());
+    };
+    let by = parsed
+        .by
+        .filter(|b| !b.is_empty())
+        .ok_or("repair needs to know who is writing: pass --by HANDLE or set ENDMARK_BY")?;
+    let source = read(path)?;
+    let at = parsed.at.unwrap_or_else(now_utc);
+    let name = display_name(path);
+
+    let found = endmark_core::repair::candidates(&source);
+    let doc = endmark_core::parse(&source);
+    for id in ids {
+        if doc.item(id).is_none() {
+            return Err(format!("{name}: no item \"{id}\""));
+        }
+    }
+    let mut current = source.clone();
+    let mut lines: Vec<String> = Vec::new();
+    let mut repaired = 0;
+    for c in found.iter().filter(|c| ids.is_empty() || ids.contains(&c.id)) {
+        if c.score < min_score {
+            lines.push(format!(
+                "{name}: left {} alone: the candidate on line {} is only {}% sure (--min-score {min_score})",
+                c.id, c.line, c.score
+            ));
+            continue;
+        }
+        let note = match &parsed.note {
+            Some(note) => note.clone(),
+            None => format!(
+                "Re-pointed by endmark repair: {}, {}% sure.",
+                c.reason.describe(),
+                c.score
+            ),
+        };
+        let stamp = Stamp {
+            by: &by,
+            at: &at,
+            on_behalf_of: parsed.person.as_deref(),
+            note: &note,
+        };
+        match write::anchor(&current, &c.id, &stamp, &c.quote) {
+            Ok(done) => {
+                current = done.source;
+                repaired += 1;
+                lines.push(format!(
+                    "{name}: re-pointed {} to line {} ({}% sure)",
+                    c.id, c.line, c.score
+                ));
+            }
+            Err(e) => lines.push(format!("{name}: refused[{}] {}: {e}", e.code(), c.id)),
+        }
+    }
+    // Say so when a comment that was asked about, or any at all, has no candidate.
+    let unanchored = doc
+        .diagnostics
+        .iter()
+        .filter(|d| matches!(d.code, Code::Detached | Code::Ambiguous));
+    for d in unanchored {
+        let id = d.id.clone().unwrap_or_default();
+        if (ids.is_empty() || ids.contains(&id)) && !found.iter().any(|c| c.id == id) {
+            lines.push(format!("{name}: left {id} alone: no place in the document stands out"));
+        }
+    }
+    if lines.is_empty() {
+        lines.push(format!("{name}: nothing to repair"));
+    }
+
+    let to_stdout = parsed.dry_run || path == "-";
+    if to_stdout {
+        io::stdout()
+            .write_all(current.as_bytes())
+            .map_err(|e| format!("standard output: {e}"))?;
+    } else if repaired > 0 {
+        replace_file(path, &source, &current)?;
+    }
+    for line in lines {
+        let line = if parsed.dry_run {
+            format!("dry run: {line}")
+        } else {
+            line
+        };
+        if to_stdout {
+            let _ = writeln!(io::stderr(), "{line}");
+        } else {
+            let _ = writeln!(io::stdout(), "{line}");
+        }
+    }
     Ok(ExitCode::SUCCESS)
 }
 

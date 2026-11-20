@@ -1,0 +1,17 @@
+{
+  "about": "A comment may carry guideposts: a line number and the lines around its quote. They are read and reported, and change nothing about matching.",
+  "items": [
+    {
+      "id": "c-1",
+      "kind": "comment",
+      "state": "live",
+      "thread": "open",
+      "anchor": "attached",
+      "hint": {
+        "line": 2,
+        "near": "Relay forwards webhook events.\nIt listens on port 8080 by default."
+      }
+    }
+  ],
+  "diagnostics": []
+}

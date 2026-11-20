@@ -65,6 +65,9 @@ pub fn item(item: &Item) -> Value {
                 None => put("root", json!(c.root)),
             }
             put("anchor", json!(c.anchor.as_str()));
+            if c.hint != Default::default() {
+                put("hint", json!({"line": c.hint.line, "near": c.hint.near}));
+            }
             if let Anchor::Attached { start, end } = c.anchor {
                 put("range", json!([start, end]));
             }

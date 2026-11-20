@@ -28,6 +28,7 @@ pub mod escape;
 #[cfg(feature = "json")]
 pub mod json;
 mod record;
+pub mod repair;
 mod scan;
 mod state;
 pub mod write;
@@ -88,6 +89,17 @@ impl Verb {
 pub struct Quote {
     pub scope: Option<String>,
     pub on: String,
+}
+
+/// Guideposts for a quote: where it was when it was written. They are never
+/// used to match. They only help to suggest a repair when the quote no
+/// longer matches exactly once (RFC 6.1).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Hint {
+    /// The 1-based line of the file on which the quote started.
+    pub line: Option<usize>,
+    /// The lines around the quote, from the `near` fence.
+    pub near: Option<String>,
 }
 
 /// One replace/with pair of a suggestion, with an optional `in` scope.
@@ -202,6 +214,8 @@ pub struct Comment {
     /// The quote in force: the latest `anchor` record, or the original.
     pub quote: Option<Quote>,
     pub original_quote: Option<Quote>,
+    /// The guideposts that came with the quote in force.
+    pub hint: Hint,
     /// Retraction is final and withdraws this one comment only.
     pub retracted: bool,
     /// The id of the thread's root comment. A root names itself.
