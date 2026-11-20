@@ -6,7 +6,7 @@
 use std::io::{self, Read, Write};
 use std::process::ExitCode;
 
-use endmark_core::{Applicability, Detail, Diagnostic, Document, Item};
+use endmark_core::{Applicability, Detail, Diagnostic, Document, Item, Landing};
 use serde_json::{json, Map, Value};
 
 const USAGE: &str = "\
@@ -275,15 +275,19 @@ fn summary(item: &Item) -> (String, String, String) {
                 (Some(Applicability::Applicable), _) => "applicable".to_string(),
                 (Some(Applicability::Stale(reason)), _) => format!("stale: {}", reason.as_str()),
                 (None, Some(landing)) => landing.as_str().to_string(),
+                (None, None) if !s.in_effect => "reverted".to_string(),
                 (None, None) => String::new(),
             };
             (s.state.as_str().to_string(), derived, plural(s.edits.len(), "edit"))
         }
-        Detail::Edit(e) => (
-            "applied".to_string(),
-            e.landing.as_str().to_string(),
-            plural(e.edits.len(), "edit"),
-        ),
+        Detail::Edit(e) | Detail::Revert(e) => {
+            let target = match (&item.detail, &item.re) {
+                (Detail::Revert(_), Some(re)) => format!("reverts {re}, {}", plural(e.edits.len(), "edit")),
+                _ => plural(e.edits.len(), "edit"),
+            };
+            let derived = e.landing.map_or("reverted", Landing::as_str);
+            ("applied".to_string(), derived.to_string(), target)
+        }
     }
 }
 
@@ -339,8 +343,8 @@ fn edits_json(edits: &[endmark_core::Edit]) -> Value {
 }
 
 /// One item. Keys that do not apply to an item are left out, not set to null:
-/// `thread` appears on thread roots only, `root` on replies only, `status` and
-/// `reason` only when there is one.
+/// `thread` appears on thread roots only, `root` on replies only, and `status`,
+/// `reason` and `reverted_by` only when there is one.
 fn item_json(item: &Item) -> Value {
     let mut m = Map::new();
     let mut put = |key: &str, value: Value| {
@@ -382,13 +386,20 @@ fn item_json(item: &Item) -> Value {
                     put("reason", json!(reason.as_str()));
                 }
                 (None, Some(landing)) => put("status", json!(landing.as_str())),
+                (None, None) if !s.in_effect => put("status", json!("reverted")),
                 (None, None) => {}
+            }
+            if let Some(by) = &s.reverted_by {
+                put("reverted_by", json!(by));
             }
             put("edits", edits_json(&s.edits));
         }
-        Detail::Edit(e) => {
+        Detail::Edit(e) | Detail::Revert(e) => {
             put("state", json!("applied"));
-            put("status", json!(e.landing.as_str()));
+            put("status", json!(e.landing.map_or("reverted", Landing::as_str)));
+            if let Some(by) = &e.reverted_by {
+                put("reverted_by", json!(by));
+            }
             put("edits", edits_json(&e.edits));
         }
     }

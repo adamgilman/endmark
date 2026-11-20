@@ -138,7 +138,22 @@ pub(crate) fn derive(body: &str, cuts: &[usize], items: &mut [Item], diags: &mut
         })
         .collect();
 
+    // A change is in effect unless it was reverted by a revert that is itself
+    // in effect. A revert always comes after its target, so walk backwards.
+    let mut in_effect: HashMap<String, bool> = HashMap::new();
+    for item in items.iter().rev() {
+        let reverted_by = match &item.detail {
+            Detail::Suggestion(s) => s.reverted_by.as_ref(),
+            Detail::Edit(e) | Detail::Revert(e) => e.reverted_by.as_ref(),
+            Detail::Comment(_) => None,
+        };
+        let undone = reverted_by.is_some_and(|by| in_effect.get(by).copied().unwrap_or(false));
+        let live = !undone;
+        in_effect.insert(item.id.clone(), live);
+    }
+
     for item in items.iter_mut() {
+        let live = in_effect[&item.id];
         match &mut item.detail {
             Detail::Comment(c) => {
                 c.anchor = match &c.quote {
@@ -186,11 +201,18 @@ pub(crate) fn derive(body: &str, cuts: &[usize], items: &mut [Item], diags: &mut
                         ));
                     }
                 }
-                SuggestionState::Accepted => s.landing = Some(landing(body, cuts, &s.edits)),
+                SuggestionState::Accepted => {
+                    s.in_effect = live;
+                    // A change that is not in effect has no new text to find.
+                    s.landing = live.then(|| landing(body, cuts, &s.edits));
+                }
                 // Rejected and retracted suggestions are not located.
                 SuggestionState::Rejected | SuggestionState::Retracted => {}
             },
-            Detail::Edit(e) => e.landing = landing(body, cuts, &e.edits),
+            Detail::Edit(e) | Detail::Revert(e) => {
+                e.in_effect = live;
+                e.landing = live.then(|| landing(body, cuts, &e.edits));
+            }
         }
     }
 }

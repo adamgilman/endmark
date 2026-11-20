@@ -1,0 +1,28 @@
+{
+  "about": "A revert record must name its target with re and must carry the edits it applied. Without either it is malformed, and the edit it meant to undo is not marked reverted.",
+  "items": [
+    {
+      "id": "e-1",
+      "kind": "edit",
+      "status": "located",
+      "reverted_by": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "line": 12,
+      "code": "missing-attribute",
+      "id": "r-1"
+    },
+    {
+      "line": 21,
+      "code": "missing-fence",
+      "id": "r-2"
+    },
+    {
+      "line": 25,
+      "code": "missing-fence",
+      "id": "r-3"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "about": "A revert whose re names no item, or an item that appears later in the file, is ignored.",
+  "items": [
+    {
+      "id": "e-1",
+      "kind": "edit",
+      "state": "applied",
+      "status": "located",
+      "reverted_by": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "line": 3,
+      "code": "unknown-target",
+      "id": "r-1"
+    },
+    {
+      "line": 12,
+      "code": "unknown-target",
+      "id": "r-2"
+    }
+  ]
+}
