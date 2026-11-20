@@ -25,8 +25,18 @@ The first version. The format is defined in [RFC 0001](rfcs/0001-endmark.md) and
 **Conformance suite**
 
 - 56 reader fixtures and 40 writer fixtures that an implementation in any language can be checked against.
+- `spec/endmark.md`: the format alone, generated from the RFC.
 
-**Not in this version**
+**Renderer and demo page**
 
-- The review renderer and the demo page.
-- The compatibility matrix across Markdown renderers.
+- `packages/render`: the reference review renderer, with Final, Review, Preview and History views.
+- `demo`: a static page that shows a document beside its source and lets a visitor comment, suggest, accept, revert and edit.
+- Both run `endmark-core` as WebAssembly and hold no format logic of their own.
+
+**Compatibility**
+
+- `compat/` checks nine Markdown engines on every pull request. Records stay hidden in every CommonMark engine tested with raw HTML on.
+
+**Known gaps**
+
+- Listed in section 12.9 of the RFC.

@@ -39,6 +39,28 @@ jobs:
       - run: cargo build --locked
       - run: python3 compat/run.py --require-all
 
+  render:
+    name: Renderer and demo page
+    # Builds the wasm module and the demo, runs the renderer's tests, and
+    # drives the built page in a headless browser.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown && rustup default stable
+      - run: bun install --frozen-lockfile
+        working-directory: packages/render
+      - run: bun run build
+        working-directory: packages/render
+      - run: bun run typecheck
+        working-directory: packages/render
+      - run: bun test
+        working-directory: packages/render
+      - run: bun run smoke
+        working-directory: packages/render
+        env:
+          CHROMIUM: google-chrome
+
   msrv:
     name: Rust 1.80
     # The oldest toolchain the crates claim to support (rust-version).

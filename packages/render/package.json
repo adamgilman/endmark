@@ -1,0 +1,23 @@
+{
+  "name": "@endmark/render",
+  "version": "0.1.0-alpha.1",
+  "description": "Reference renderer for Endmark files",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "bun run build.ts",
+    "test": "bun test",
+    "smoke": "bun run test/smoke.ts",
+    "serve": "bun run serve.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "markdown-it": "15.0.3",
+    "mermaid": "12.3.0"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  }
+}
