@@ -1,0 +1,12 @@
+{
+  "about": "Ranges that only touch do not overlap.",
+  "items": [
+    {
+      "id": "s-1",
+      "kind": "suggestion",
+      "state": "open",
+      "status": "applicable"
+    }
+  ],
+  "diagnostics": []
+}

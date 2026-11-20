@@ -1,0 +1,59 @@
+{
+  "about": "RFC Appendix A.3: s-4q8d accepted, and c-7f3k re-pointed by an anchor record.",
+  "body": "# Relay\n\nRelay forwards webhook events to internal consumers. It listens on port 8443 by default.\n\n## Installation\n\n1. Install the `relay` binary.\n2. Set `RELAY_TOKEN`.\n3. Run `relay serve`.\n\n## Retries\n\nFailed deliveries are retried 3 times with a fixed 5 second delay.\n\n```mermaid\ngraph LR\n  A[Webhook] --> B[Relay] --> C[Consumer]\n```\n\n\n\n\n\n\n\n\n\n",
+  "items": [
+    {
+      "id": "e-0h5n",
+      "kind": "edit",
+      "line": 20,
+      "by": "adam",
+      "state": "applied",
+      "status": "located"
+    },
+    {
+      "id": "s-3c7j",
+      "kind": "suggestion",
+      "line": 29,
+      "by": "maria",
+      "state": "accepted",
+      "status": "located"
+    },
+    {
+      "id": "c-7f3k",
+      "kind": "comment",
+      "line": 42,
+      "by": "maria",
+      "state": "live",
+      "thread": "open",
+      "anchor": "attached"
+    },
+    {
+      "id": "c-2m9x",
+      "kind": "comment",
+      "line": 49,
+      "by": "agent:claude",
+      "for": "adam",
+      "state": "live",
+      "root": "c-7f3k",
+      "anchor": "unquoted"
+    },
+    {
+      "id": "s-4q8d",
+      "kind": "suggestion",
+      "line": 53,
+      "by": "agent:claude",
+      "state": "accepted",
+      "status": "located"
+    },
+    {
+      "id": "c-9d1t",
+      "kind": "comment",
+      "line": 78,
+      "by": "adam",
+      "state": "live",
+      "thread": "open",
+      "anchor": "attached"
+    }
+  ],
+  "diagnostics": []
+}

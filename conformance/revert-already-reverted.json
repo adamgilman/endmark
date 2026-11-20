@@ -1,0 +1,42 @@
+{
+  "about": "A change can be reverted once. A second revert of e-1 is ignored, and its id stays free, so the later r-2 is a valid item. To undo a revert, revert the revert: e-1, r-1, r-2 and r-3 form a chain, and each link flips whether the ones before it are in effect.",
+  "body": "Limit is 10.\n\n\n\n\n\n",
+  "items": [
+    {
+      "id": "e-1",
+      "kind": "edit",
+      "status": "reverted",
+      "reverted_by": "r-1"
+    },
+    {
+      "id": "r-1",
+      "kind": "revert",
+      "re": "e-1",
+      "line": 12,
+      "status": "located",
+      "reverted_by": "r-2"
+    },
+    {
+      "id": "r-2",
+      "kind": "revert",
+      "re": "r-1",
+      "line": 30,
+      "status": "reverted",
+      "reverted_by": "r-3"
+    },
+    {
+      "id": "r-3",
+      "kind": "revert",
+      "re": "r-2",
+      "status": "located",
+      "reverted_by": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "line": 21,
+      "code": "already-final",
+      "id": "r-2"
+    }
+  ]
+}

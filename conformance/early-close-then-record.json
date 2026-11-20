@@ -1,0 +1,19 @@
+{
+  "about": "The skip after an early close stops where the next record starts.",
+  "items": [
+    {
+      "id": "c-2",
+      "kind": "comment",
+      "state": "live",
+      "thread": "open",
+      "anchor": "unquoted"
+    }
+  ],
+  "diagnostics": [
+    {
+      "line": 4,
+      "code": "early-close",
+      "id": "c-1"
+    }
+  ]
+}

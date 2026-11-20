@@ -1,0 +1,27 @@
+{
+  "about": "resolve and reopen name the thread root.",
+  "items": [
+    {
+      "id": "c-1",
+      "kind": "comment",
+      "state": "live",
+      "thread": "open",
+      "anchor": "unquoted"
+    },
+    {
+      "id": "c-2",
+      "kind": "comment",
+      "state": "live",
+      "root": "c-1",
+      "thread": null,
+      "anchor": "unquoted"
+    }
+  ],
+  "diagnostics": [
+    {
+      "line": 7,
+      "code": "wrong-target",
+      "id": "c-2"
+    }
+  ]
+}

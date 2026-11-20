@@ -1,0 +1,14 @@
+{
+  "about": "A code fence inside a note belongs to the note, with its content.",
+  "items": [
+    {
+      "id": "c-1",
+      "kind": "comment",
+      "state": "live",
+      "thread": "open",
+      "anchor": "attached",
+      "note": "Use this:\n\n````text\n```on\nnot structure\n```\n````"
+    }
+  ],
+  "diagnostics": []
+}

@@ -1,0 +1,20 @@
+{
+  "about": "The first use of an id wins.",
+  "items": [
+    {
+      "id": "c-1",
+      "kind": "comment",
+      "state": "live",
+      "thread": "open",
+      "anchor": "unquoted",
+      "note": "First."
+    }
+  ],
+  "diagnostics": [
+    {
+      "line": 7,
+      "code": "duplicate-id",
+      "id": "c-1"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "about": "A reply to nothing is treated as a thread root.",
+  "items": [
+    {
+      "id": "c-2",
+      "kind": "comment",
+      "state": "live",
+      "thread": "open",
+      "anchor": "unquoted"
+    }
+  ],
+  "diagnostics": [
+    {
+      "line": 3,
+      "code": "dangling-reply",
+      "id": "c-2"
+    }
+  ]
+}

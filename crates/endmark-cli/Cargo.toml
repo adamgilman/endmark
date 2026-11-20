@@ -1,0 +1,16 @@
+[package]
+name = "endmark-cli"
+description = "The endmark command: lint and inspect Endmark files"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "endmark"
+path = "src/main.rs"
+
+[dependencies]
+endmark-core = { path = "../endmark-core", version = "0.1.0-alpha.1" }
+serde_json = "1"

@@ -1,0 +1,18 @@
+{
+  "items": [
+    {
+      "id": "c-1",
+      "kind": "comment",
+      "state": "live",
+      "thread": "open",
+      "anchor": "unquoted"
+    }
+  ],
+  "diagnostics": [
+    {
+      "line": 5,
+      "code": "wrong-target",
+      "id": "c-1"
+    }
+  ]
+}

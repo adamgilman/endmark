@@ -1,0 +1,41 @@
+{
+  "about": "Only a change can be reverted. A revert that names a comment, an open suggestion or a rejected suggestion is ignored and creates no item.",
+  "items": [
+    {
+      "id": "c-1",
+      "kind": "comment",
+      "anchor": "attached"
+    },
+    {
+      "id": "s-1",
+      "kind": "suggestion",
+      "state": "open",
+      "status": "applicable",
+      "reverted_by": null
+    },
+    {
+      "id": "s-2",
+      "kind": "suggestion",
+      "state": "rejected",
+      "status": null,
+      "reverted_by": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "line": 30,
+      "code": "wrong-target",
+      "id": "r-1"
+    },
+    {
+      "line": 39,
+      "code": "wrong-target",
+      "id": "r-2"
+    },
+    {
+      "line": 48,
+      "code": "wrong-target",
+      "id": "r-3"
+    }
+  ]
+}

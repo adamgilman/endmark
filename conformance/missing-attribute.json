@@ -1,0 +1,10 @@
+{
+  "items": [],
+  "diagnostics": [
+    {
+      "line": 3,
+      "code": "missing-attribute",
+      "id": "c-1"
+    }
+  ]
+}

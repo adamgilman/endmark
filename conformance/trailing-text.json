@@ -1,0 +1,10 @@
+{
+  "items": [],
+  "diagnostics": [
+    {
+      "line": 3,
+      "code": "trailing-text",
+      "id": "c-1"
+    }
+  ]
+}
