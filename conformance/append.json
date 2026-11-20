@@ -1,0 +1,12 @@
+{
+  "about": "An empty replace appends to the body.",
+  "items": [
+    {
+      "id": "s-1",
+      "kind": "suggestion",
+      "state": "open",
+      "status": "applicable"
+    }
+  ],
+  "diagnostics": []
+}

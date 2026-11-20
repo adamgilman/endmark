@@ -1,0 +1,10 @@
+{
+  "items": [],
+  "diagnostics": [
+    {
+      "line": 3,
+      "code": "unexpected-fence",
+      "id": "c-1"
+    }
+  ]
+}

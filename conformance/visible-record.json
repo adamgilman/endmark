@@ -1,0 +1,19 @@
+{
+  "about": "The body leaves a <pre> block open, so CommonMark does not read the record as an HTML block of its own. Readers still read it.",
+  "items": [
+    {
+      "id": "c-1",
+      "kind": "comment",
+      "state": "live",
+      "thread": "open",
+      "anchor": "unquoted"
+    }
+  ],
+  "diagnostics": [
+    {
+      "line": 3,
+      "code": "visible-record",
+      "id": "c-1"
+    }
+  ]
+}

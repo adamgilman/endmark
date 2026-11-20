@@ -1,0 +1,9 @@
+{
+  "about": "The edit deleted text and has no in fence, so where the text was is not recorded.",
+  "op": "revert",
+  "id": "e-1",
+  "new_id": "r-1",
+  "by": "ana",
+  "at": "2026-11-20T10:00:00Z",
+  "fails": "unscoped-deletion"
+}

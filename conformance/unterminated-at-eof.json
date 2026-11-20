@@ -1,0 +1,12 @@
+{
+  "about": "A record still open at end of file is malformed and runs to end of file.",
+  "body": "Hello world.\n",
+  "items": [],
+  "diagnostics": [
+    {
+      "line": 3,
+      "code": "unterminated-record",
+      "id": "c-1"
+    }
+  ]
+}

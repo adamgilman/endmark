@@ -1,0 +1,12 @@
+{
+  "about": "To locate an applied edit, its scope is rewritten with the edit applied.",
+  "items": [
+    {
+      "id": "s-1",
+      "kind": "suggestion",
+      "state": "accepted",
+      "status": "located"
+    }
+  ],
+  "diagnostics": []
+}

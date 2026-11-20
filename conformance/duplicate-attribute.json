@@ -1,0 +1,14 @@
+{
+  "about": "The first value of a duplicated key wins, so the author is ana and ana may retract.",
+  "items": [
+    {
+      "id": "c-1",
+      "kind": "comment",
+      "by": "ana",
+      "state": "retracted",
+      "thread": "open",
+      "anchor": "unquoted"
+    }
+  ],
+  "diagnostics": []
+}

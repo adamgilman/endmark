@@ -1,0 +1,24 @@
+{
+  "about": "An action must name an item that appears earlier in the file.",
+  "items": [
+    {
+      "id": "c-1",
+      "kind": "comment",
+      "state": "live",
+      "thread": "open",
+      "anchor": "unquoted"
+    }
+  ],
+  "diagnostics": [
+    {
+      "line": 3,
+      "code": "unknown-target",
+      "id": "s-9"
+    },
+    {
+      "line": 5,
+      "code": "unknown-target",
+      "id": "c-1"
+    }
+  ]
+}

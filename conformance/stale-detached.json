@@ -1,0 +1,18 @@
+{
+  "items": [
+    {
+      "id": "s-1",
+      "kind": "suggestion",
+      "state": "open",
+      "status": "stale",
+      "reason": "detached"
+    }
+  ],
+  "diagnostics": [
+    {
+      "line": 3,
+      "code": "stale",
+      "id": "s-1"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "about": "CRLF is normalised to LF before scanning and matching.",
+  "body": "Hello world.\n\n",
+  "items": [
+    {
+      "id": "c-1",
+      "kind": "comment",
+      "state": "live",
+      "thread": "open",
+      "anchor": "attached"
+    }
+  ],
+  "diagnostics": []
+}

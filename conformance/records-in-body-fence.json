@@ -1,0 +1,14 @@
+{
+  "about": "Text inside a body code fence is never a record.",
+  "body": "Example:\n\n```\n<!--endmark comment c-9 by=ana at=2026-11-13T09:00:00Z -->\n```\n\n",
+  "items": [
+    {
+      "id": "c-1",
+      "kind": "comment",
+      "state": "live",
+      "thread": "open",
+      "anchor": "unquoted"
+    }
+  ],
+  "diagnostics": []
+}

@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install stable --profile minimal --component rustfmt,clippy && rustup default stable
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+
+  msrv:
+    name: Rust 1.80
+    # The oldest toolchain the crates claim to support (rust-version).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install 1.80 --profile minimal && rustup default 1.80
+      - run: cargo test --locked
+
+  build:
+    name: Build ${{ matrix.os }}
+    # Tests and a release binary on all three platforms.
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install stable --profile minimal && rustup default stable
+      - run: cargo test --locked
+      - run: cargo build --release --locked
+      - uses: actions/upload-artifact@v4
+        with:
+          name: endmark-${{ matrix.os }}
+          path: |
+            target/release/endmark
+            target/release/endmark.exe
+          if-no-files-found: error

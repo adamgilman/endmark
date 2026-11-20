@@ -1,0 +1,44 @@
+{
+  "about": "A revert of a logged edit. The edit is marked reverted and is no longer located; the revert is a new item whose new text is located. The edit also gains a revert event.",
+  "body": "The cache holds 200 entries.\n\n\n",
+  "items": [
+    {
+      "id": "e-1",
+      "kind": "edit",
+      "line": 3,
+      "state": "applied",
+      "status": "reverted",
+      "reverted_by": "r-1",
+      "events": [
+        {
+          "verb": "revert",
+          "line": 12,
+          "by": "ben",
+          "at": "2026-11-13T09:05:00Z",
+          "for": null,
+          "note": "Too much memory on small hosts."
+        }
+      ]
+    },
+    {
+      "id": "r-1",
+      "kind": "revert",
+      "line": 12,
+      "by": "ben",
+      "re": "e-1",
+      "state": "applied",
+      "status": "located",
+      "reverted_by": null,
+      "note": "Too much memory on small hosts.",
+      "edits": [
+        {
+          "in": null,
+          "replace": "500 entries",
+          "with": "200 entries"
+        }
+      ],
+      "events": []
+    }
+  ],
+  "diagnostics": []
+}

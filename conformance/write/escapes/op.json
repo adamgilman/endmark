@@ -1,0 +1,8 @@
+{
+  "about": "Text with a comment terminator and a run of backticks. The terminator is written escaped, and the fence is made longer than the run.",
+  "op": "revert",
+  "id": "e-1",
+  "new_id": "r-1",
+  "by": "ana",
+  "at": "2026-11-20T10:00:00Z"
+}

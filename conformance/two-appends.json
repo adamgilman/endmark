@@ -1,0 +1,19 @@
+{
+  "about": "Two empty-replace insertions in one suggestion overlap.",
+  "items": [
+    {
+      "id": "s-1",
+      "kind": "suggestion",
+      "state": "open",
+      "status": "stale",
+      "reason": "overlap"
+    }
+  ],
+  "diagnostics": [
+    {
+      "line": 3,
+      "code": "stale",
+      "id": "s-1"
+    }
+  ]
+}

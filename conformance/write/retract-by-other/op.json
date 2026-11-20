@@ -1,0 +1,8 @@
+{
+  "about": "Only the author can retract. A reader would ignore the record, so the writer does not write it.",
+  "op": "retract",
+  "by": "ana",
+  "at": "2026-11-20T10:00:00Z",
+  "id": "s-1",
+  "fails": "not-author"
+}

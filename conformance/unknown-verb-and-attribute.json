@@ -1,0 +1,24 @@
+{
+  "about": "Readers ignore a record with an unknown verb, and an unknown attribute on a known verb.",
+  "items": [
+    {
+      "id": "c-1",
+      "kind": "comment",
+      "state": "live",
+      "thread": "open",
+      "anchor": "unquoted"
+    }
+  ],
+  "diagnostics": [
+    {
+      "line": 3,
+      "code": "unknown-verb",
+      "id": "s-1"
+    },
+    {
+      "line": 5,
+      "code": "unknown-attribute",
+      "id": "c-1"
+    }
+  ]
+}

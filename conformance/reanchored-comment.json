@@ -1,0 +1,13 @@
+{
+  "about": "The latest anchor record replaces the original quote.",
+  "items": [
+    {
+      "id": "c-1",
+      "kind": "comment",
+      "state": "live",
+      "thread": "open",
+      "anchor": "attached"
+    }
+  ],
+  "diagnostics": []
+}

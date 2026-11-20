@@ -1,0 +1,12 @@
+{
+  "about": "Rejected and retracted suggestions are not located.",
+  "items": [
+    {
+      "id": "s-1",
+      "kind": "suggestion",
+      "state": "rejected",
+      "status": null
+    }
+  ],
+  "diagnostics": []
+}

@@ -1,0 +1,13 @@
+{
+  "items": [
+    {
+      "id": "c-1",
+      "kind": "comment",
+      "state": "live",
+      "thread": "open",
+      "anchor": "unquoted",
+      "note": "A remark on the whole document."
+    }
+  ],
+  "diagnostics": []
+}
