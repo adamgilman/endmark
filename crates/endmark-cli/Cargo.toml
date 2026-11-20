@@ -1,11 +1,16 @@
 [package]
-name = "endmark-cli"
+name = "endmark"
 description = "The endmark command: lint, inspect and revert changes in Endmark files"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
+keywords.workspace = true
+categories = ["command-line-utilities", "text-processing"]
+readme = "../../README.md"
+# The tests run the fixtures in the repository, which are not part of the package.
+exclude = ["tests"]
 
 [[bin]]
 name = "endmark"

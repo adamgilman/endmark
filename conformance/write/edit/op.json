@@ -1,0 +1,13 @@
+{
+  "about": "A direct change, logged. The comment quoting exactly the replaced text is re-pointed in the same write.",
+  "op": "edit",
+  "by": "ana",
+  "at": "2026-11-20T10:00:00Z",
+  "new_id": "e-1",
+  "edits": [
+    {
+      "replace": "3 times",
+      "with": "5 times"
+    }
+  ]
+}

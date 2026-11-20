@@ -1,0 +1,19 @@
+{
+  "about": "A suggestion with a note and two edits, one scoped. The body is unchanged.",
+  "op": "suggest",
+  "by": "ana",
+  "at": "2026-11-20T10:00:00Z",
+  "new_id": "s-1",
+  "note": "More retries, fewer nodes.",
+  "edits": [
+    {
+      "replace": "Retry 3",
+      "with": "Retry 5"
+    },
+    {
+      "in": "3 nodes",
+      "replace": "3",
+      "with": "2"
+    }
+  ]
+}
