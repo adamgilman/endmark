@@ -1,0 +1,8 @@
+{
+  "about": "The text the suggestion would replace has changed. A stale suggestion cannot be accepted.",
+  "op": "accept",
+  "by": "ana",
+  "at": "2026-11-20T10:00:00Z",
+  "id": "s-1",
+  "fails": "stale"
+}

@@ -39,27 +39,37 @@ fn cases() -> Vec<PathBuf> {
 #[test]
 fn writer_fixtures_pass() {
     let all = cases();
-    assert!(all.len() >= 15, "found only {} writer fixtures", all.len());
+    assert!(all.len() >= 40, "found only {} writer fixtures", all.len());
     let mut failures = Vec::new();
     for dir in &all {
         let name = dir.file_name().unwrap().to_string_lossy().into_owned();
         let op: Value = serde_json::from_str(&std::fs::read_to_string(dir.join("op.json")).unwrap())
             .unwrap_or_else(|e| panic!("{name}/op.json: {e}"));
         let field = |key: &str| op[key].as_str();
-        assert_eq!(field("op"), Some("revert"), "{name}: unknown op");
-        let mut args = vec!["revert"];
+        let command = field("op").expect("op");
+        let mut args = vec![command];
         for (flag, key) in [
             ("--by", "by"),
             ("--at", "at"),
             ("--id", "new_id"),
             ("--for", "for"),
             ("--note", "note"),
+            ("--in", "in"),
+            ("--on", "on"),
         ] {
             if let Some(value) = field(key) {
                 args.extend([flag, value]);
             }
         }
-        args.extend(["-", field("id").expect("id")]);
+        for edit in op["edits"].as_array().into_iter().flatten() {
+            for (flag, key) in [("--in", "in"), ("--replace", "replace"), ("--with", "with")] {
+                if let Some(value) = edit[key].as_str() {
+                    args.extend([flag, value]);
+                }
+            }
+        }
+        args.push("-");
+        args.extend(field("id"));
 
         let input = std::fs::read(dir.join("input.md")).unwrap();
         let out = endmark(&args, &input);
@@ -98,6 +108,17 @@ fn writer_fixtures_pass() {
         }
     }
     assert!(failures.is_empty(), "\n{}\n", failures.join("\n"));
+
+    // Every command that writes has at least one case that succeeds.
+    for command in [
+        "comment", "reply", "suggest", "edit", "accept", "reject", "retract", "resolve", "reopen", "anchor", "revert",
+    ] {
+        let covered = all.iter().any(|dir| {
+            let op = std::fs::read_to_string(dir.join("op.json")).unwrap();
+            op.contains(&format!("\"op\": \"{command}\"")) && dir.join("expected.md").exists()
+        });
+        assert!(covered, "no writer fixture succeeds for {command}");
+    }
 }
 
 /// The file on disk is replaced in one step, and only when the write succeeds.

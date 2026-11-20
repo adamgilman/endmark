@@ -1,0 +1,18 @@
+{
+  "about": "Two edits of one suggestion touch the same text.",
+  "op": "suggest",
+  "by": "ana",
+  "at": "2026-11-20T10:00:00Z",
+  "new_id": "s-1",
+  "edits": [
+    {
+      "replace": "Retry 3",
+      "with": "Retry 5"
+    },
+    {
+      "replace": "3 times",
+      "with": "5 times"
+    }
+  ],
+  "fails": "overlap"
+}

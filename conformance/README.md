@@ -84,17 +84,22 @@ Each directory under `write/` is one case for a writer:
 {
   "about": "What the case shows.",
   "op": "revert",
-  "id": "s-4q8d",
-  "new_id": "r-6w2p",
+  "id": "Optional. The item acted on or replied to.",
+  "new_id": "Optional. The id for a new item.",
   "by": "maria",
   "at": "2026-11-12T09:15:00Z",
   "for": "Optional. The for attribute.",
   "note": "Optional.",
+  "on": "Optional. The quote of a comment or an anchor.",
+  "in": "Optional. The scope of that quote.",
+  "edits": [{"in": "Optional.", "replace": "old text", "with": "new text"}],
   "fails": "Optional. Present when the write must be refused: the reason."
 }
 ```
 
-`id` is the id the person gave, which may be any link of a chain. `new_id` and `at` are fixed so that the output can be compared exactly; a writer normally chooses them itself.
+`op` is `comment`, `reply`, `suggest`, `edit`, `accept`, `reject`, `retract`, `resolve`, `reopen`, `anchor` or `revert`. A reply is a comment whose `re` is `id`. `edits` belongs to `suggest` and `edit`.
+
+`id` is the id the person gave. For `revert` it may be any link of a chain, and for `resolve` and `reopen` any comment of the thread. `new_id` and `at` are fixed so that the output can be compared exactly; a writer normally chooses them itself.
 
 A refused write must leave the file unchanged. The reasons are:
 
@@ -106,6 +111,13 @@ A refused write must leave the file unchanged. The reasons are:
 | `text-changed` | The text the change wrote is no longer in the body exactly once |
 | `unscoped-deletion` | The change deleted text with no `in` fence, so the place is not recorded |
 | `id-in-use` | The id for the new record is taken |
+| `quote-not-found` | A quote, or the text an edit replaces, is not in the body |
+| `quote-ambiguous` | It is in the body more than once, and no scope narrows it |
+| `overlap` | Two edits of one change touch the same text |
+| `stale` | The suggestion to accept no longer applies to the body |
+| `empty` | A comment has neither a quote nor a note |
+| `no-change` | The thread is already in the state asked for |
+| a finding code, such as `not-author`, `wrong-target` or `already-final` | A reader would ignore the record, for the reason that code gives in RFC 0001, section 12.4 |
 
 Every `expected.md` passes `endmark lint --strict`. The reference implementation runs these cases in `crates/endmark-cli/tests/write.rs`.
 
