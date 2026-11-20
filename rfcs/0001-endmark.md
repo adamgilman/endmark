@@ -537,6 +537,7 @@ pub struct Document {
 | `endmark repair FILE [ID...]` | Re-points unanchored comments for which one place clearly stands out, by appending `anchor` records (6.1, 12.4). `--min-score N` sets how sure to be; the default is 80. |
 | `endmark revert FILE ID` | Undo a change: apply its edits backwards and append a `revert` record. `ID` is an accepted suggestion, an `edit` or a revert, and may be any link of a chain: the command follows the chain to its tip (9.3). It refuses if `ID` is not in effect, and names the id that would bring it back. `--by` or `ENDMARK_BY` gives the author; `--note`, `--for`, `--id`, `--at` and `--dry-run` are optional. |
 | `endmark log FILE` | Prints history, newest first; `--format json` for tools |
+| `endmark skill` | Prints instructions for AI agents as a SKILL.md document: what Endmark is, the rules of section 10, and how to use each command |
 
 Every command that writes takes `--by` (or `ENDMARK_BY`), and optionally `--for`, `--note`, `--id`, `--at` and `--dry-run`. With `-` as the file it reads standard input and prints the result. It exits 1, with the file untouched, when the write is refused.
 
