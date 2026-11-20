@@ -1,0 +1,75 @@
+{
+  "about": "RFC Appendix A.4: the accepted suggestion s-4q8d is reverted by r-6w2p. The body is back to its text before the accept, the suggestion stays accepted and is marked reverted, and c-7f3k is re-pointed again.",
+  "body": "# Relay\n\nRelay forwards webhook events to internal consumers. It listens on port 8080 by default.\n\n## Setup\n\n1. Install the `relay` binary.\n2. Set `RELAY_TOKEN`.\n3. Run `relay serve`.\n\n## Retries\n\nFailed deliveries are retried 3 times with a fixed 5 second delay.\n\n```mermaid\ngraph LR\n  A[Webhook] --> B[Relay]\n```\n\n\n\n\n\n\n\n\n\n\n\n",
+  "items": [
+    {
+      "id": "e-0h5n",
+      "kind": "edit",
+      "line": 20,
+      "by": "adam",
+      "state": "applied",
+      "status": "located",
+      "reverted_by": null
+    },
+    {
+      "id": "s-3c7j",
+      "kind": "suggestion",
+      "line": 29,
+      "by": "maria",
+      "state": "accepted",
+      "status": "located",
+      "reverted_by": null
+    },
+    {
+      "id": "c-7f3k",
+      "kind": "comment",
+      "line": 42,
+      "by": "maria",
+      "state": "live",
+      "thread": "open",
+      "anchor": "attached",
+      "reverted_by": null
+    },
+    {
+      "id": "c-2m9x",
+      "kind": "comment",
+      "line": 49,
+      "by": "agent:claude",
+      "for": "adam",
+      "state": "live",
+      "root": "c-7f3k",
+      "anchor": "unquoted",
+      "reverted_by": null
+    },
+    {
+      "id": "s-4q8d",
+      "kind": "suggestion",
+      "line": 53,
+      "by": "agent:claude",
+      "state": "accepted",
+      "status": "reverted",
+      "reverted_by": "r-6w2p"
+    },
+    {
+      "id": "c-9d1t",
+      "kind": "comment",
+      "line": 78,
+      "by": "adam",
+      "state": "live",
+      "thread": "open",
+      "anchor": "attached",
+      "reverted_by": null
+    },
+    {
+      "id": "r-6w2p",
+      "kind": "revert",
+      "line": 96,
+      "by": "maria",
+      "re": "s-4q8d",
+      "state": "applied",
+      "status": "located",
+      "reverted_by": null
+    }
+  ],
+  "diagnostics": []
+}

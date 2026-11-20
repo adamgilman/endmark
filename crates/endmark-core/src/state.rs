@@ -4,9 +4,7 @@ use std::collections::HashMap;
 
 use crate::diag::{Code, Diagnostic};
 use crate::record::Record;
-use crate::{
-    Anchor, AppliedEdit, Comment, Detail, Event, Item, Landing, Suggestion, SuggestionState, ThreadState, Verb,
-};
+use crate::{Anchor, AppliedEdit, Comment, Detail, Event, Item, Suggestion, SuggestionState, ThreadState, Verb};
 
 pub(crate) fn fold(records: Vec<Record>, diags: &mut Vec<Diagnostic>) -> Vec<Item> {
     let mut items: Vec<Item> = Vec::new();
@@ -14,7 +12,7 @@ pub(crate) fn fold(records: Vec<Record>, diags: &mut Vec<Diagnostic>) -> Vec<Ite
 
     for rec in records {
         match rec.verb {
-            Verb::Comment | Verb::Suggest | Verb::Edit => {
+            Verb::Comment | Verb::Suggest | Verb::Edit | Verb::Revert => {
                 if let Some(&first) = index.get(&rec.id) {
                     diags.push(Diagnostic::new(
                         Code::DuplicateId,
@@ -24,6 +22,19 @@ pub(crate) fn fold(records: Vec<Record>, diags: &mut Vec<Diagnostic>) -> Vec<Ite
                     ));
                     continue;
                 }
+                if rec.verb == Verb::Revert {
+                    // A revert that names nothing it can undo is ignored, and its id stays free.
+                    if let Err((code, message)) = revert(&mut items, &index, &rec) {
+                        diags.push(Diagnostic::new(code, rec.line, Some(&rec.id), message));
+                        continue;
+                    }
+                }
+                let applied = |edits| AppliedEdit {
+                    edits,
+                    landing: None,
+                    reverted_by: None,
+                    in_effect: true,
+                };
                 let detail = match rec.verb {
                     Verb::Comment => Detail::Comment(new_comment(&rec, &items, &index, diags)),
                     Verb::Suggest => Detail::Suggestion(Suggestion {
@@ -31,11 +42,11 @@ pub(crate) fn fold(records: Vec<Record>, diags: &mut Vec<Diagnostic>) -> Vec<Ite
                         state: SuggestionState::Open,
                         applicability: None,
                         landing: None,
+                        reverted_by: None,
+                        in_effect: true,
                     }),
-                    _ => Detail::Edit(AppliedEdit {
-                        edits: rec.edits,
-                        landing: Landing::Unlocatable,
-                    }),
+                    Verb::Revert => Detail::Revert(applied(rec.edits)),
+                    _ => Detail::Edit(applied(rec.edits)),
                 };
                 index.insert(rec.id.clone(), items.len());
                 items.push(Item {
@@ -81,6 +92,51 @@ pub(crate) fn fold(records: Vec<Record>, diags: &mut Vec<Diagnostic>) -> Vec<Ite
         }
     }
     items
+}
+
+/// Marks the change named by a revert's `re` as reverted, or says why a
+/// reader ignores the revert. Only a change can be reverted: an accepted
+/// suggestion, an edit or another revert, and each only once.
+fn revert(items: &mut [Item], index: &HashMap<String, usize>, rec: &Record) -> Result<(), (Code, String)> {
+    let re = rec.re.as_deref().unwrap_or_default();
+    let Some(&target) = index.get(re) else {
+        return Err((
+            Code::UnknownTarget,
+            format!("re=\"{re}\" names no item that appears before this revert"),
+        ));
+    };
+    let item = &mut items[target];
+    let kind = item.kind();
+    let reverted_by = match &mut item.detail {
+        Detail::Suggestion(s) if s.state == SuggestionState::Accepted => &mut s.reverted_by,
+        Detail::Suggestion(s) => {
+            return Err((
+                Code::WrongTarget,
+                format!(
+                    "suggestion \"{re}\" is {}, not accepted, so there is no change to revert",
+                    s.state.as_str()
+                ),
+            ))
+        }
+        Detail::Edit(e) | Detail::Revert(e) => &mut e.reverted_by,
+        Detail::Comment(_) => return Err((Code::WrongTarget, format!("revert does not apply to comment \"{re}\""))),
+    };
+    if let Some(earlier) = reverted_by {
+        return Err((
+            Code::AlreadyFinal,
+            format!("{kind} \"{re}\" is already reverted, by \"{earlier}\"; to undo that, revert \"{earlier}\""),
+        ));
+    }
+    *reverted_by = Some(rec.id.clone());
+    item.events.push(Event {
+        verb: Verb::Revert,
+        line: rec.line,
+        by: rec.by.clone(),
+        at: rec.at.clone(),
+        on_behalf_of: rec.on_behalf_of.clone(),
+        note: rec.note.clone(),
+    });
+    Ok(())
 }
 
 fn new_comment(rec: &Record, items: &[Item], index: &HashMap<String, usize>, diags: &mut Vec<Diagnostic>) -> Comment {

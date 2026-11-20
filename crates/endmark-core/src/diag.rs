@@ -127,7 +127,7 @@ impl Code {
             }
             Code::TrailingText => "put nothing after \"-->\" on a single-line record",
             Code::BadHeader => "the header is: <!--endmark VERB ID key=value ...",
-            Code::MissingAttribute => "every record needs by= and at=",
+            Code::MissingAttribute => "every record needs by= and at=, and a revert needs re=",
             Code::IncompleteEdit => "follow each replace fence with a with fence",
             Code::MissingFence => "add the fence this verb requires, with content",
             Code::UnexpectedFence => "remove the fence, or use the verb it belongs to",
@@ -135,7 +135,7 @@ impl Code {
             Code::UnknownTarget => "name an item that appears earlier in the file",
             Code::WrongTarget => "check which kind of item this verb acts on",
             Code::NotAuthor => "only the author of an item can retract it",
-            Code::AlreadyFinal => "the item is closed; start a new one instead",
+            Code::AlreadyFinal => "the item is closed; start a new one, or to undo a revert, revert the revert",
             Code::VisibleRecord => {
                 "move the record to the end of the file, after any open code fence or HTML block is closed"
             }

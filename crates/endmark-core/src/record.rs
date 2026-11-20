@@ -18,7 +18,7 @@ pub(crate) struct Record {
     pub note: String,
     /// The quote of a `comment` or `anchor`.
     pub quote: Option<Quote>,
-    /// The edits of a `suggest` or `edit`.
+    /// The edits of a `suggest`, `edit` or `revert`.
     pub edits: Vec<Edit>,
 }
 
@@ -185,7 +185,7 @@ fn quote_structure(blocks: Vec<(Fence, String)>, on_required: bool) -> Structure
     }
 }
 
-/// One or more `[in] replace with`, for `suggest` and `edit`.
+/// One or more `[in] replace with`, for `suggest`, `edit` and `revert`.
 fn edit_structure(blocks: Vec<(Fence, String)>) -> Structure {
     let mut edits = Vec::new();
     let mut scope: Option<String> = None;
@@ -308,6 +308,16 @@ pub(crate) fn parse_record(raw: &RawRecord, diags: &mut Vec<Diagnostic>) -> Opti
         return None;
     };
 
+    if verb == Verb::Revert && re.is_none() {
+        diags.push(Diagnostic::new(
+            Code::MissingAttribute,
+            raw.line,
+            id,
+            "a revert record has no re= to name the change it undoes",
+        ));
+        return None;
+    }
+
     let (blocks, note) = match parse_content(&raw.content) {
         Ok(parsed) => parsed,
         Err(()) => {
@@ -323,7 +333,7 @@ pub(crate) fn parse_record(raw: &RawRecord, diags: &mut Vec<Diagnostic>) -> Opti
     let structure = match verb {
         Verb::Comment => quote_structure(blocks, false),
         Verb::Anchor => quote_structure(blocks, true),
-        Verb::Suggest | Verb::Edit => edit_structure(blocks),
+        Verb::Suggest | Verb::Edit | Verb::Revert => edit_structure(blocks),
         _ => match blocks.first() {
             None => Ok((None, Vec::new())),
             Some((kind, _)) => Err((

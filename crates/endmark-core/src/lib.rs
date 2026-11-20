@@ -27,12 +27,13 @@ mod state;
 pub use diag::{Code, Diagnostic, Severity};
 pub use scan::START;
 
-/// The nine verbs (RFC 7).
+/// The ten verbs (RFC 7).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Verb {
     Comment,
     Suggest,
     Edit,
+    Revert,
     Accept,
     Reject,
     Retract,
@@ -47,6 +48,7 @@ impl Verb {
             "comment" => Verb::Comment,
             "suggest" => Verb::Suggest,
             "edit" => Verb::Edit,
+            "revert" => Verb::Revert,
             "accept" => Verb::Accept,
             "reject" => Verb::Reject,
             "retract" => Verb::Retract,
@@ -62,6 +64,7 @@ impl Verb {
             Verb::Comment => "comment",
             Verb::Suggest => "suggest",
             Verb::Edit => "edit",
+            Verb::Revert => "revert",
             Verb::Accept => "accept",
             Verb::Reject => "reject",
             Verb::Retract => "retract",
@@ -206,15 +209,25 @@ pub struct Suggestion {
     pub state: SuggestionState,
     /// Present while the suggestion is open.
     pub applicability: Option<Applicability>,
-    /// Present once the suggestion is accepted.
+    /// Present while the suggestion is accepted and in effect.
     pub landing: Option<Landing>,
+    /// The id of the `revert` that undid this suggestion, if any.
+    pub reverted_by: Option<String>,
+    /// False when the change has been undone and not brought back (RFC 8.2).
+    pub in_effect: bool,
 }
 
-/// A change already made to the body and logged with the `edit` verb.
+/// A change already made to the body and logged with the `edit` or the
+/// `revert` verb.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AppliedEdit {
     pub edits: Vec<Edit>,
-    pub landing: Landing,
+    /// Present while the change is in effect.
+    pub landing: Option<Landing>,
+    /// The id of the `revert` that undid this change, if any.
+    pub reverted_by: Option<String>,
+    /// False when the change has been undone and not brought back (RFC 8.2).
+    pub in_effect: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -222,6 +235,8 @@ pub enum Detail {
     Comment(Comment),
     Suggestion(Suggestion),
     Edit(AppliedEdit),
+    /// A change that undoes the change named by the item's `re`.
+    Revert(AppliedEdit),
 }
 
 /// An action record that took effect on an item.
@@ -235,7 +250,7 @@ pub struct Event {
     pub note: String,
 }
 
-/// A comment, a suggestion or a logged edit, with its stored and derived state.
+/// A comment, a suggestion, a logged edit or a revert, with its stored and derived state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Item {
     pub id: String,
@@ -257,6 +272,7 @@ impl Item {
             Detail::Comment(_) => "comment",
             Detail::Suggestion(_) => "suggestion",
             Detail::Edit(_) => "edit",
+            Detail::Revert(_) => "revert",
         }
     }
 }
