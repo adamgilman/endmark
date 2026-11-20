@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/endmark-core", "crates/endmark-cli"]
+members = ["crates/endmark-core", "crates/endmark-cli", "crates/endmark-wasm"]
 
 [workspace.package]
 version = "0.1.0-alpha.1"
@@ -8,7 +8,6 @@ edition = "2021"
 license = "MIT"
 repository = "https://github.com/adamgilman/endmark"
 rust-version = "1.80"
-homepage = "https://github.com/adamgilman/endmark"
 keywords = ["markdown", "review", "comments", "linter", "agents"]
 
 [profile.release]

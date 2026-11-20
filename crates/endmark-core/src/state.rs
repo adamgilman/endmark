@@ -32,6 +32,7 @@ pub(crate) fn fold(records: Vec<Record>, diags: &mut Vec<Diagnostic>) -> Vec<Ite
                 let applied = |edits| AppliedEdit {
                     edits,
                     landing: None,
+                    ranges: Vec::new(),
                     reverted_by: None,
                     in_effect: true,
                 };
@@ -42,6 +43,7 @@ pub(crate) fn fold(records: Vec<Record>, diags: &mut Vec<Diagnostic>) -> Vec<Ite
                         state: SuggestionState::Open,
                         applicability: None,
                         landing: None,
+                        ranges: Vec::new(),
                         reverted_by: None,
                         in_effect: true,
                     }),

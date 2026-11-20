@@ -25,6 +25,8 @@ mod anchor;
 mod commonmark;
 pub mod diag;
 pub mod escape;
+#[cfg(feature = "json")]
+pub mod json;
 mod record;
 mod scan;
 mod state;
@@ -217,6 +219,10 @@ pub struct Suggestion {
     pub applicability: Option<Applicability>,
     /// Present while the suggestion is accepted and in effect.
     pub landing: Option<Landing>,
+    /// One entry per edit: the byte range in the body that an open
+    /// suggestion would replace, or where the new text of a change in effect
+    /// is now. `None` when it cannot be found.
+    pub ranges: Vec<Option<(usize, usize)>>,
     /// The id of the `revert` that undid this suggestion, if any.
     pub reverted_by: Option<String>,
     /// False when the change has been undone and not brought back (RFC 8.2).
@@ -230,6 +236,10 @@ pub struct AppliedEdit {
     pub edits: Vec<Edit>,
     /// Present while the change is in effect.
     pub landing: Option<Landing>,
+    /// One entry per edit: the byte range in the body that an open
+    /// suggestion would replace, or where the new text of a change in effect
+    /// is now. `None` when it cannot be found.
+    pub ranges: Vec<Option<(usize, usize)>>,
     /// The id of the `revert` that undid this change, if any.
     pub reverted_by: Option<String>,
     /// False when the change has been undone and not brought back (RFC 8.2).

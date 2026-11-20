@@ -1,0 +1,11 @@
+{
+  "name": "endmark-compat",
+  "private": true,
+  "type": "module",
+  "description": "JavaScript Markdown engines for the Endmark compatibility matrix",
+  "dependencies": {
+    "commonmark": "0.31.2",
+    "markdown-it": "14.1.0",
+    "marked": "15.0.12"
+  }
+}
