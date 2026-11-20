@@ -762,6 +762,7 @@ h2.em-label {
 /* Sections. */
 
 .em-problems,
+.em-drafts,
 .em-tray,
 .em-whole {
   border: 1px solid var(--em-border);
@@ -771,8 +772,14 @@ h2.em-label {
 }
 
 .em-problems,
+.em-drafts,
 .em-tray {
   border-color: var(--em-warn);
+}
+
+/* A reply that was being written when its item left the view. */
+.em-drafts:not(:has(form)) {
+  display: none;
 }
 
 .em-tray,

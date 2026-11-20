@@ -30,6 +30,7 @@ Every command that writes needs an author. As an agent, pass `--by agent:NAME --
 - `endmark log FILE` prints the history, newest first.
 - `endmark body FILE` prints the document without its records.
 - `--format json` on `status`, `log` and `lint` gives the same as JSON. `status` in JSON has the full notes, quotes and edits.
+- `endmark view FILE` is for people, not for you. It serves the file as a review page to a browser on this computer and runs until it is interrupted. Do not start it to read a file. If the user wants to see the document with its comments drawn, tell them to run it.
 
 Ids start with `c-` (comment), `s-` (suggestion), `e-` (edit) or `r-` (revert). A command that creates an item prints its id: `notes.md: added comment c-51e8`.
 

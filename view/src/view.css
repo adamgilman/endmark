@@ -1,0 +1,131 @@
+@import "../../packages/render/src/style.css";
+
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --surface: #f6f8fa;
+  --text: #1f2328;
+  --muted: #59636e;
+  --border: #d1d9e0;
+  --accent: #0969da;
+  --refused: #a40e26;
+  --refused-bg: #ffebe9;
+  --warn: #9a6700;
+  --warn-bg: #fff8c5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --text: #e6edf3;
+    --muted: #9198a1;
+    --border: #3d444d;
+    --accent: #4493f8;
+    --refused: #ff7b72;
+    --refused-bg: #4c1a1d;
+    --warn: #d29922;
+    --warn-bg: #3a2d00;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 1rem;
+  color: var(--text);
+  background: var(--bg);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.6;
+}
+
+.top,
+.status,
+#doc,
+.foot {
+  max-width: 78rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.top h1 {
+  font-size: 1.25rem;
+  line-height: 1.3;
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.top p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.top code,
+.status code,
+.foot code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.875em;
+}
+
+.mode {
+  display: inline-block;
+  padding: 0 0.5rem;
+  border: 1px solid var(--warn);
+  border-radius: 999px;
+  color: var(--warn);
+  background: var(--warn-bg);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.status {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+}
+
+.status.refused {
+  border-color: var(--refused);
+  background: var(--refused-bg);
+}
+
+.status strong {
+  margin-right: 0.3rem;
+}
+
+.foot {
+  margin-top: 2rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

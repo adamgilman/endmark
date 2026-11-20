@@ -10,6 +10,7 @@
     "build": "bun run build.ts",
     "test": "bun test",
     "smoke": "bun run test/smoke.ts",
+    "smoke:view": "bun run test/view.ts",
     "serve": "bun run serve.ts",
     "typecheck": "tsc --noEmit"
   },

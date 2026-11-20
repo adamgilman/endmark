@@ -40,16 +40,25 @@ jobs:
       - run: python3 compat/run.py --require-all
 
   render:
-    name: Renderer and demo page
-    # Builds the wasm module and the demo, runs the renderer's tests, and
-    # drives the built page in a headless browser.
+    name: Renderer, demo page and endmark view
+    # Builds the wasm module, the demo and the page of `endmark view`, runs
+    # the renderer's tests, and drives both pages in a headless browser.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
       - run: rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown && rustup default stable
+      # The page that the binary embeds is committed in crates/endmark-cli/view.
+      # This fails when it was built from other sources than the ones in the
+      # tree. It compares a hash of the sources, not the built files: this
+      # job's rustc and bun need not be the ones that built what is committed,
+      # and would produce different bytes. `cargo test` in the other jobs
+      # runs the same check.
+      - run: cargo test --locked -p endmark --test view_assets
       - run: bun install --frozen-lockfile
         working-directory: packages/render
+      # Rebuilds both pages, so the browser tests below run what the sources
+      # in the tree produce, with the binary rebuilt around it.
       - run: bun run build
         working-directory: packages/render
       - run: bun run typecheck
@@ -57,6 +66,13 @@ jobs:
       - run: bun test
         working-directory: packages/render
       - run: bun run smoke
+        working-directory: packages/render
+        env:
+          CHROMIUM: google-chrome
+      # Starts the real `endmark view` and uses its page: writes reach the
+      # file on disk, the page follows the file, read-only offers nothing,
+      # hostile HTML runs nothing, and no request leaves the server's origin.
+      - run: bun run smoke:view
         working-directory: packages/render
         env:
           CHROMIUM: google-chrome

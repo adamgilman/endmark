@@ -10,5 +10,5 @@
     "skipLibCheck": true,
     "types": []
   },
-  "include": ["src", "../../demo/src"]
+  "include": ["src", "../../demo/src", "../../view/src"]
 }

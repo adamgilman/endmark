@@ -497,11 +497,12 @@ The conformance suite is plain files, so an implementation in any language can b
 spec/endmark.md        The normative spec: sections 3 to 11 of this RFC and its worked example, generated from it
 conformance/          Fixtures: an input .md and the expected .json beside it
 crates/endmark-core/   Scanner, parser, state, anchoring, diagnostics, writer operations
-crates/endmark-cli/    The `endmark` binary
+crates/endmark-cli/    The `endmark` binary. Its `view/` directory holds the built page that `endmark view` serves.
 crates/endmark-wasm/   endmark-core as a WebAssembly module, behind one JSON call
 compat/               The compatibility matrix (12.7)
 packages/render/      The review renderer, in TypeScript, on endmark-core as WebAssembly
 demo/                 The demo page (12.5): static files built on the renderer
+view/                 The page of `endmark view`: a second host for the renderer, served by the binary
 rfcs/                 This document and later ones
 ```
 
@@ -538,10 +539,17 @@ pub struct Document {
 | `endmark revert FILE ID` | Undo a change: apply its edits backwards and append a `revert` record. `ID` is an accepted suggestion, an `edit` or a revert, and may be any link of a chain: the command follows the chain to its tip (9.3). It refuses if `ID` is not in effect, and names the id that would bring it back. `--by` or `ENDMARK_BY` gives the author; `--note`, `--for`, `--id`, `--at` and `--dry-run` are optional. |
 | `endmark log FILE` | Prints history, newest first; `--format json` for tools |
 | `endmark skill` | Prints instructions for AI agents as a SKILL.md document: what Endmark is, the rules of section 10, and how to use each command |
+| `endmark view FILE` | Serves the reference renderer (section 11) for one file to a browser on the same computer, at `http://127.0.0.1:4173/`, until interrupted. `--port N` changes the port, and `--read-only` shows the file and writes nothing. |
 
 Every command that writes takes `--by` (or `ENDMARK_BY`), and optionally `--for` (or `ENDMARK_FOR`), `--note`, `--id`, `--at` and `--dry-run`. With `-` as the file it reads standard input and prints the result. It exits 1, with the file untouched, when the write is refused. A refusal that carries a linter's code carries that code's hint too.
 
 Two things are warned about on standard error and written all the same: an author that starts with `agent:` with no person named, and, from `suggest` and `edit`, a deletion that `revert` could not put back, because it has no `in` scope or deletes all of it (9.3).
+
+**`endmark view` (new).** The binary carries the reference renderer, so that installing one program gives a person the whole experience: the document drawn with its comments and suggestions, the four views of section 11, and every action. It is an example of a host, not a product.
+
+- **What it is.** A small HTTP server for one file and one person. The page is built into the binary and needs no network. It reads through `endmark-core` as WebAssembly, the same as the demo page. It does not write: it sends each action to the server as one operation, and the server performs it with `endmark-core` on the file as it is on disk, with the author given by `--by`, its own clock and a new id, and replaces the file as every other command does (9.2, 9.5). A refused write comes back with the same code, message and hint as on the command line. The page asks about once a second whether the file changed, and redraws when it did, keeping any form that is being typed in.
+- **What it is not.** It listens on `127.0.0.1` only and has no option to listen elsewhere. It has no accounts, no TLS, no list of files and no file picker. It does not draw images. People who want a shared review site should host the renderer themselves.
+- **What it defends against.** A page in another browser tab cannot read or write through it: every request for the file needs a token that only the served page holds, a write must also be a JSON `POST` from the server's own origin, and the `Host` header must name the server, which stops DNS rebinding. Raw HTML in the document is shown as text, and a Content-Security-Policy keeps the page to the server's own origin. It does not defend against other users or programs on the same computer. `SECURITY.md` has the full list.
 
 **What the writing commands refuse (new).** A writer in the reference implementation never writes a record that a reader would ignore or report:
 
@@ -770,9 +778,18 @@ Recorded on 2026-11-20. Each is a place where the code does less than this RFC s
 - A direct body edit assumes the records are all at the end of the file, which holds for the example.
 - Diagram code is split into files that load on demand from the page's own directory. Editing the body into another kind of diagram fetches one more file. No request leaves that directory.
 
+**`endmark view` (12.3)**
+
+- It shares the demo page's gaps in selecting text and in commenting on the whole document.
+- Images in the body are not drawn. Their Markdown source is shown.
+- Any user or program on the same computer can reach the server, read the file and write to it. There is no authentication beyond the token in the page.
+- The page asks for the whole file again when it changed. That is fine for one document and one reader, and would not suit a large file on a slow link.
+- A reply being typed is kept when the file changes. A text selection, and the Comment and Suggest buttons offered on it, are not: select again.
+
 **Not checked**
 
-- Touch selection, Firefox, Safari and accessibility of the demo page. It was tested in Chromium only.
+- Touch selection, Firefox, Safari and accessibility of the demo page and of `endmark view`. They were tested in Chromium only.
+- `endmark view` on macOS and Windows. Its tests ran on Linux only.
 - Obsidian, the VS Code preview, GitHub and GitLab (12.7).
 - The release workflow. No release has been made, so it has not run on a tag.
 

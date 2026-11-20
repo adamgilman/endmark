@@ -4,3 +4,5 @@ conformance/write/*/*.md -text
 # Embedded in tests with include_str!, and matched against LF text.
 crates/endmark-core/tests/repair/*.md -text
 crates/endmark-cli/src/skill.md -text
+# The page of `endmark view`, built by packages/render/build.ts and embedded in the binary.
+crates/endmark-cli/view/** -text

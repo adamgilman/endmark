@@ -16,6 +16,8 @@ use endmark_core::write::{self, Stamp};
 use endmark_core::{Anchor, Applicability, Code, Detail, Document, Edit, Item, Landing, Quote, Verb};
 use serde_json::{json, Value};
 
+mod view;
+
 const USAGE: &str = "\
 endmark: comments, suggestions and history for Markdown files
 
@@ -33,6 +35,8 @@ Usage:
   endmark anchor  --on TEXT [--in TEXT] FILE ID
   endmark revert  [--note TEXT] FILE ID
   endmark repair  [--min-score N] FILE [ID...]
+
+  endmark view [--port N] [--read-only] FILE
 
   endmark skill
   endmark help | --help | --version
@@ -73,6 +77,13 @@ revert change the document itself.
            the document clearly stands out. Writes an anchor record for
            each. Run lint --suggest first to see what it would do.
 
+In a browser:
+  view     Serve FILE as a review page at http://127.0.0.1:4173/ until
+           interrupted: the document with its comments and suggestions,
+           and its history. What you do on the page is written to FILE
+           as --by. The page follows the file when it changes on disk.
+           An example for one person: it listens on this computer only.
+
 For AI agents:
   skill    Print what Endmark is and how to use this tool, as a SKILL.md
            document. To install it as a skill, write it to a file:
@@ -98,6 +109,8 @@ Options:
   --dry-run        print the resulting file, do not write it
   --id ID          id for a new item. Default: random
   --at TIME        RFC 3339 UTC time. Default: now
+  --port N         view: the port. Default: 4173. 0 picks a free port
+  --read-only      view: show the file and write nothing. Needs no --by
 
 Exit status:
   0  no errors; for a write: the file was written; for repair: also
@@ -191,6 +204,7 @@ fn run(args: &[String]) -> Result<ExitCode, String> {
         "log" => log(parse_options(rest, false, true)?),
         "repair" => repair(rest),
         "skill" => skill(rest),
+        "view" => view::run(rest),
         "comment" | "reply" | "suggest" | "edit" | "accept" | "reject" | "retract" | "resolve" | "reopen"
         | "anchor" | "revert" => write_command(command, rest),
         other => Err(format!("unknown command \"{other}\"; see endmark --help")),
