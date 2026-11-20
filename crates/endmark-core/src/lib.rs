@@ -15,6 +15,11 @@
 //! assert!(doc.diagnostics.is_empty());
 //! ```
 
+/// Compiles the example in the crate's README as a test.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeExample;
+
 mod anchor;
 #[cfg(feature = "commonmark")]
 mod commonmark;

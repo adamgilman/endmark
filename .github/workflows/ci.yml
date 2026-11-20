@@ -22,21 +22,29 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
 
+  msrv:
+    name: Rust 1.80
+    # The oldest toolchain the crates claim to support (rust-version).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install 1.80 --profile minimal && rustup default 1.80
+      - run: cargo test --locked
+
   build:
     name: Build ${{ matrix.os }}
-    # Release binaries for all three platforms. Runs on main only, to keep
-    # pull requests quick.
-    if: github.event_name == 'push'
+    # Tests and a release binary on all three platforms.
     needs: test
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - run: rustup toolchain install stable --profile minimal && rustup default stable
-      - run: cargo test
-      - run: cargo build --release
+      - run: cargo test --locked
+      - run: cargo build --release --locked
       - uses: actions/upload-artifact@v4
         with:
           name: endmark-${{ matrix.os }}

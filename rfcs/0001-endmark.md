@@ -339,7 +339,11 @@ A revert is all or nothing, like an accept. To undo part of a change, write a su
 - If it had no scope, the place is not recorded, and the writer MUST fail.
 - For this reason a writer SHOULD give every deletion an `in` scope, in a suggestion and in a revert alike, so that the deletion can be reverted.
 
-**Limits of the reference implementation.** These apply to every write, not only to revert. It reads its own result back before returning it, and refuses the write if a reader would not find the new record, or would read its edits or its note differently. That covers the check in 9.1. It also refuses when the text to change sits after the first record in the file, where body text only ends up through an unaware editor. A file with CRLF line endings is written back with CRLF.
+**Limits of the reference implementation.** These apply to every write, not only to revert. It reads its own result back before returning it, and refuses the write if a reader would not find the new record, or would read its edits or its note differently. That covers the check in 9.1. It also refuses when the text to change sits after the first record in the file, where body text only ends up through an unaware editor.
+
+New text is checked against the log before it is written. A write is refused if it would join text onto the line of an existing record, or if the new text holds a line that a reader would take for a record: accepting a suggestion must never be a way to plant an `accept` under someone else's name. A comment is re-pointed only when the edit replaced the very range the comment was attached to, not the same words elsewhere.
+
+A file with CRLF line endings is written back with CRLF, and text given with CRLF matches it. A file that mixes the two is not written at all.
 
 **What a revert leaves alone.** It does not reopen a suggestion, and it does not resolve, reopen or retract any comment. Other open suggestions are checked against the new body on the next read, as after any change to the body. A change made by a tool that wrote no record cannot be reverted, because there is nothing to name (D-3).
 
@@ -404,7 +408,7 @@ An aware renderer draws the body as ordinary Markdown, then layers records on to
 
 ### 12.1 Starting point
 
-Milestones M1 and M2 are implemented: `endmark-core` with the read path and one write operation per verb, the `endmark` command with every command in the table in 12.3, and the reader and writer fixtures (12.6). The renderer and the demo page are still to be built, and so are the two CI items in the M1 exit test, the release binaries on every platform and the benchmark budget.
+Milestones M1 and M2 are implemented: `endmark-core` with the read path and one write operation per verb, the `endmark` command with every command in the table in 12.3, and the reader and writer fixtures (12.6). The renderer and the demo page are still to be built, and so is the benchmark budget in CI from the M1 exit test. CI tests and builds on Linux, macOS and Windows, and pushing a version tag builds the release binaries.
 
 The draft spec came with a 145-line Python example parser. It was an illustration, not a foundation, and it is not part of this repository. Before it was set aside it was run for this RFC, on 2026-11-13, with two results worth keeping.
 
