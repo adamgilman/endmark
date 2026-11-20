@@ -118,6 +118,8 @@ A refused write must leave the file unchanged. The reasons are:
 | `stale` | The suggestion to accept no longer applies to the body |
 | `empty` | A comment has neither a quote nor a note |
 | `no-change` | The thread is already in the state asked for |
+| `breaks-log` | The new text would run into a record in the file, or would itself be read as a record |
+| `mixed-line-endings` | The file mixes CRLF and LF, so it cannot be written back without changing lines the write did not name |
 | a finding code, such as `not-author`, `wrong-target` or `already-final` | A reader would ignore the record, for the reason that code gives in RFC 0001, section 12.4 |
 
 Every `expected.md` passes `endmark lint --strict`. The reference implementation runs these cases in `crates/endmark-cli/tests/write.rs`.

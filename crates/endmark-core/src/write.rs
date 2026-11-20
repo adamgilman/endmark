@@ -83,6 +83,10 @@ pub enum WriteError {
     Empty { what: &'static str },
     /// The write would change nothing.
     NoChange { id: String, what: &'static str },
+    /// The new text would damage a record in the file, or read as a record itself.
+    BreaksLog,
+    /// The file mixes CRLF and LF line endings.
+    MixedLineEndings,
     /// A reader would ignore the record. `code` is the linter's code for why.
     Ignored { code: &'static str, message: String },
 }
@@ -106,6 +110,8 @@ impl WriteError {
             WriteError::Stale { .. } => "stale",
             WriteError::Empty { .. } => "empty",
             WriteError::NoChange { .. } => "no-change",
+            WriteError::BreaksLog => "breaks-log",
+            WriteError::MixedLineEndings => "mixed-line-endings",
             WriteError::Ignored { code, .. } => code,
         }
     }
@@ -136,6 +142,10 @@ impl WriteError {
             WriteError::Stale { .. } => "retract the suggestion and suggest again against the current text".into(),
             WriteError::Empty { .. } => "give a note, quoted text, or both".into(),
             WriteError::NoChange { .. } => "nothing to do".into(),
+            WriteError::BreaksLog => {
+                "end the new text with a newline, and keep lines that start \"<!--endmark \" out of it".into()
+            }
+            WriteError::MixedLineEndings => "convert the file to one kind of line ending first".into(),
             WriteError::Ignored { .. } => "a reader would ignore this record, so it was not written".into(),
         }
     }
@@ -175,6 +185,8 @@ impl fmt::Display for WriteError {
             WriteError::Stale { id, why } => write!(f, "suggestion \"{id}\" cannot be applied: {why}"),
             WriteError::Empty { what } => write!(f, "{what} would be empty"),
             WriteError::NoChange { id, what } => write!(f, "\"{id}\" is already {what}"),
+            WriteError::BreaksLog => write!(f, "the new text would damage a record in the file, or be read as one"),
+            WriteError::MixedLineEndings => write!(f, "the file mixes CRLF and LF line endings"),
             WriteError::Ignored { message, .. } => write!(f, "{message}"),
         }
     }
@@ -192,7 +204,8 @@ fn shorten(text: &str) -> String {
 }
 
 /// Edits a write applied to the body, and where each landed.
-type Applied<'a> = (&'a [Edit], &'a [(usize, usize)]);
+/// The edits, the range each replaced, and where each landed.
+type Applied<'a> = (&'a [Edit], &'a [(usize, usize)], &'a [(usize, usize)]);
 
 // ---- reading the file ----
 
@@ -210,8 +223,13 @@ fn open(source: &str, stamp: &Stamp, new_id: Option<&str>) -> Result<File, Write
         check_value("for", person, false)?;
     }
     let text = source.replace("\r\n", "\n");
+    let crlf = source.contains("\r\n");
+    if crlf && text.matches('\n').count() != source.matches("\r\n").count() {
+        // Writing either ending back would change lines the write did not name.
+        return Err(WriteError::MixedLineEndings);
+    }
     let file = File {
-        crlf: source.contains("\r\n"),
+        crlf,
         doc: parse(&text),
         scan: scan::scan(&text),
         text,
@@ -279,6 +297,26 @@ impl File {
         for &n in order.iter().rev() {
             out.replace_range(ranges[n].0..ranges[n].1, &edits[n].with);
         }
+        // The log must come through untouched: the same records, and a body
+        // that is the old body with exactly these edits applied. Otherwise
+        // the new text ran into a record, or reads as one (RFC 4.3).
+        let mut body = self.scan.body.clone();
+        for &n in order.iter().rev() {
+            body.replace_range(ranges[n].0..ranges[n].1, &edits[n].with);
+        }
+        let rescanned = scan::scan(&out);
+        let same_record = |a: &scan::RawRecord, b: &scan::RawRecord| {
+            a.header == b.header && a.content == b.content && a.fault.is_some() == b.fault.is_some()
+        };
+        let log_intact = rescanned.records.len() == self.scan.records.len()
+            && rescanned
+                .records
+                .iter()
+                .zip(&self.scan.records)
+                .all(|(a, b)| same_record(a, b));
+        if !log_intact || rescanned.body != body {
+            return Err(WriteError::BreaksLog);
+        }
         let mut landed = vec![(0usize, 0usize); edits.len()];
         let mut shift = 0isize;
         for &n in &order {
@@ -307,11 +345,11 @@ impl File {
         append(&mut out, record);
 
         let mut reanchored = Vec::new();
-        if let Some((edits, landed)) = applied {
+        if let Some((edits, replaced, landed)) = applied {
             let middle = parse(&out);
             let rescanned = scan::scan(&out);
             for item in &self.doc.items {
-                if let Some(quote) = repair(item, &middle, &rescanned, edits, landed) {
+                if let Some(quote) = repair(item, &middle, &rescanned, edits, replaced, landed) {
                     append(&mut out, &anchor_record(&item.id, stamp, &quote, ""));
                     reanchored.push(item.id.clone());
                 }
@@ -530,6 +568,30 @@ fn missing(edit: &Edit, ambiguous: bool) -> WriteError {
     }
 }
 
+/// Text given by the caller is matched after CRLF normalisation, like the
+/// file itself (RFC 6).
+fn lf(text: &str) -> String {
+    text.replace("\r\n", "\n")
+}
+
+fn lf_quote(quote: &Quote) -> Quote {
+    Quote {
+        scope: quote.scope.as_deref().map(lf),
+        on: lf(&quote.on),
+    }
+}
+
+fn lf_edits(edits: &[Edit]) -> Vec<Edit> {
+    edits
+        .iter()
+        .map(|e| Edit {
+            scope: e.scope.as_deref().map(lf),
+            replace: lf(&e.replace),
+            with: lf(&e.with),
+        })
+        .collect()
+}
+
 // ---- the verbs ----
 
 /// Adds a comment (RFC 7). With a quote it points at body text, which must
@@ -542,6 +604,10 @@ pub fn comment(
     quote: Option<&Quote>,
     re: Option<&str>,
 ) -> Result<Written, WriteError> {
+    let quote = quote.map(lf_quote);
+    let quote = quote.as_ref();
+    let note = lf(stamp.note);
+    let stamp = &Stamp { note: &note, ..*stamp };
     let file = open(source, stamp, Some(new_id))?;
     if let Some(re) = re {
         file.item(re)?;
@@ -566,6 +632,10 @@ pub fn comment(
 /// Adds a suggestion (RFC 7). Every edit must match exactly once, and no
 /// two may overlap. The body is not changed.
 pub fn suggest(source: &str, new_id: &str, stamp: &Stamp, edits: &[Edit]) -> Result<Written, WriteError> {
+    let edits = lf_edits(edits);
+    let edits = edits.as_slice();
+    let note = lf(stamp.note);
+    let stamp = &Stamp { note: &note, ..*stamp };
     let file = open(source, stamp, Some(new_id))?;
     if edits.is_empty() {
         return Err(WriteError::Empty { what: "the suggestion" });
@@ -584,6 +654,10 @@ pub fn suggest(source: &str, new_id: &str, stamp: &Stamp, edits: &[Edit]) -> Res
 
 /// Changes the body and logs the change (RFC 7, `edit`).
 pub fn edit(source: &str, new_id: &str, stamp: &Stamp, edits: &[Edit]) -> Result<Written, WriteError> {
+    let edits = lf_edits(edits);
+    let edits = edits.as_slice();
+    let note = lf(stamp.note);
+    let stamp = &Stamp { note: &note, ..*stamp };
     let file = open(source, stamp, Some(new_id))?;
     if edits.is_empty() {
         return Err(WriteError::Empty { what: "the edit" });
@@ -591,7 +665,7 @@ pub fn edit(source: &str, new_id: &str, stamp: &Stamp, edits: &[Edit]) -> Result
     let ranges = file.locate(edits, missing)?;
     let (out, landed) = file.apply(edits, &ranges)?;
     let record = change_record("edit", new_id, None, stamp, edits);
-    file.finish(out, &record, stamp, Some((edits, &landed)), new_id, |after| {
+    file.finish(out, &record, stamp, Some((edits, &ranges, &landed)), new_id, |after| {
         let item = after.item(new_id).ok_or(NOT_FOUND)?;
         match &item.detail {
             Detail::Edit(e) if e.edits == edits => {}
@@ -603,6 +677,8 @@ pub fn edit(source: &str, new_id: &str, stamp: &Stamp, edits: &[Edit]) -> Result
 
 /// Accepts a suggestion: applies its edits and appends the record (RFC 9.2).
 pub fn accept(source: &str, id: &str, stamp: &Stamp) -> Result<Written, WriteError> {
+    let note = lf(stamp.note);
+    let stamp = &Stamp { note: &note, ..*stamp };
     let file = open(source, stamp, None)?;
     let item = file.item(id)?;
     let Detail::Suggestion(suggestion) = &item.detail else {
@@ -636,12 +712,17 @@ pub fn accept(source: &str, id: &str, stamp: &Stamp) -> Result<Written, WriteErr
         })?;
     let (out, landed) = file.apply(edits, &ranges)?;
     let record = action_record("accept", id, stamp);
-    file.finish(out, &record, stamp, Some((edits, &landed)), id, |after| {
-        match after.item(id).map(|i| &i.detail) {
+    file.finish(
+        out,
+        &record,
+        stamp,
+        Some((edits, &ranges, &landed)),
+        id,
+        |after| match after.item(id).map(|i| &i.detail) {
             Some(Detail::Suggestion(s)) if s.state == SuggestionState::Accepted => Ok(()),
             _ => Err(NOT_FOUND),
-        }
-    })
+        },
+    )
 }
 
 /// Appends `reject`, `retract`, `resolve` or `reopen` (RFC 7 and 8.1).
@@ -649,6 +730,8 @@ pub fn accept(source: &str, id: &str, stamp: &Stamp) -> Result<Written, WriteErr
 /// For `resolve` and `reopen`, `id` may be any comment of the thread: the
 /// record names the root.
 pub fn act(source: &str, verb: Verb, id: &str, stamp: &Stamp) -> Result<Written, WriteError> {
+    let note = lf(stamp.note);
+    let stamp = &Stamp { note: &note, ..*stamp };
     let file = open(source, stamp, None)?;
     let item = file.item(id)?;
     let mut id = id;
@@ -690,6 +773,9 @@ pub fn act(source: &str, verb: Verb, id: &str, stamp: &Stamp) -> Result<Written,
 
 /// Re-points a comment at new text (RFC 7, `anchor`).
 pub fn anchor(source: &str, id: &str, stamp: &Stamp, quote: &Quote) -> Result<Written, WriteError> {
+    let quote = &lf_quote(quote);
+    let note = lf(stamp.note);
+    let stamp = &Stamp { note: &note, ..*stamp };
     let file = open(source, stamp, None)?;
     file.item(id)?;
     file.resolve_quote(quote)?;
@@ -775,6 +861,8 @@ fn lines_around(body: &str, start: usize, end: usize, need_more: bool) -> Option
 ///
 /// `new_id` is the id for the new revert record.
 pub fn revert(source: &str, id: &str, new_id: &str, stamp: &Stamp) -> Result<Written, WriteError> {
+    let note = lf(stamp.note);
+    let stamp = &Stamp { note: &note, ..*stamp };
     let file = open(source, stamp, Some(new_id))?;
     let (body, cuts) = (&file.scan.body, &file.scan.cuts);
     let given = file.item(id)?;
@@ -839,36 +927,55 @@ pub fn revert(source: &str, id: &str, new_id: &str, stamp: &Stamp) -> Result<Wri
     }
     let (out, landed) = file.apply(&inverse, &ranges)?;
     let record = change_record("revert", new_id, Some(target), stamp, &inverse);
-    let mut written = file.finish(out, &record, stamp, Some((&inverse, &landed)), new_id, |after| {
-        let item = after.item(new_id).ok_or(NOT_FOUND)?;
-        match &item.detail {
-            Detail::Revert(r) if r.edits == inverse && item.re.as_deref() == Some(target) => {}
-            _ => return Err("its edits would be read differently"),
-        }
-        same_note(&item.note, stamp.note)
-    })?;
+    let mut written = file.finish(
+        out,
+        &record,
+        stamp,
+        Some((&inverse, &ranges, &landed)),
+        new_id,
+        |after| {
+            let item = after.item(new_id).ok_or(NOT_FOUND)?;
+            match &item.detail {
+                Detail::Revert(r) if r.edits == inverse && item.re.as_deref() == Some(target) => {}
+                _ => return Err("its edits would be read differently"),
+            }
+            same_note(&item.note, stamp.note)
+        },
+    )?;
     written.target = Some(target.to_string());
     Ok(written)
 }
 
 /// The new quote for a comment that was attached before the write and is not
 /// now, when its quote was exactly the `replace` text of an applied edit.
-fn repair(item: &Item, after: &Document, scanned: &Scan, applied: &[Edit], landed: &[(usize, usize)]) -> Option<Quote> {
+fn repair(
+    item: &Item,
+    after: &Document,
+    scanned: &Scan,
+    applied: &[Edit],
+    replaced: &[(usize, usize)],
+    landed: &[(usize, usize)],
+) -> Option<Quote> {
     let Detail::Comment(comment) = &item.detail else {
         return None;
     };
-    let was_attached = matches!(comment.anchor, Anchor::Attached { .. });
+    // Where the comment was attached before the write.
+    let was = match comment.anchor {
+        Anchor::Attached { start, end } => Some((start, end)),
+        _ => None,
+    };
     let still_attached = match &after.item(&item.id)?.detail {
         Detail::Comment(c) => matches!(c.anchor, Anchor::Attached { .. }),
         _ => true,
     };
-    if comment.retracted || !was_attached || still_attached {
+    if comment.retracted || was.is_none() || still_attached {
         return None;
     }
     let quote = comment.quote.as_ref()?;
-    let n = applied
-        .iter()
-        .position(|e| e.replace == quote.on && !e.with.is_empty())?;
+    // The edit must have replaced exactly the text the comment was attached
+    // to: the same words elsewhere in the body are a different place.
+    let n = (0..applied.len())
+        .find(|&n| applied[n].replace == quote.on && !applied[n].with.is_empty() && Some(replaced[n]) == was)?;
     let (edit, (start, end)) = (&applied[n], landed[n]);
     let (body, cuts) = (&scanned.body, &scanned.cuts);
 
@@ -975,5 +1082,126 @@ mod tests {
         assert_eq!(parse(&source).errors(), 0);
         let done = revert(&source, "e-1", "r-1", &stamp("")).unwrap();
         assert_eq!(parse(&done.source).body, format!("Do: {old}\n\n\n"));
+    }
+
+    const LOG: &str = "\n<!--endmark suggest s-1 by=ana at=2026-11-13T09:00:00Z\n```replace\nIntro.\n```\n```with\nHello.\n```\n-->\n";
+
+    fn replace(old: &str, new: &str) -> Vec<Edit> {
+        vec![Edit {
+            scope: None,
+            replace: old.into(),
+            with: new.into(),
+        }]
+    }
+
+    #[test]
+    fn new_text_cannot_run_into_the_first_record() {
+        let source = format!("Intro.\n\nLast paragraph.\n{LOG}");
+        let err = edit(
+            &source,
+            "e-1",
+            &stamp(""),
+            &replace("Last paragraph.\n\n", "New ending."),
+        )
+        .unwrap_err();
+        assert_eq!(err, WriteError::BreaksLog);
+        // With its line ending kept, the same change is fine.
+        let done = edit(
+            &source,
+            "e-1",
+            &stamp(""),
+            &replace("Last paragraph.\n", "New ending.\n"),
+        )
+        .unwrap();
+        assert!(parse(&done.source).item("s-1").is_some());
+
+        // An append straight in front of a record that has no blank line before it.
+        let tight = "alpha\n<!--endmark comment c-1 by=ana at=2026-11-13T09:00:00Z\nHi.\n-->\n";
+        assert_eq!(
+            edit(tight, "e-1", &stamp(""), &replace("", "beta")).unwrap_err(),
+            WriteError::BreaksLog
+        );
+        assert!(edit(tight, "e-1", &stamp(""), &replace("", "beta\n")).is_ok());
+    }
+
+    #[test]
+    fn new_text_cannot_plant_a_record() {
+        let source = "alpha beta\n\ngamma\n";
+        let forged = "beta\n\n<!--endmark comment c-9 by=boss at=2026-11-01T00:00:00Z\nShip it.\n-->\n";
+        assert_eq!(
+            edit(source, "e-1", &stamp(""), &replace("beta", forged)).unwrap_err(),
+            WriteError::BreaksLog
+        );
+
+        // The same text in a suggestion is only a quote, but accepting it is refused.
+        let suggested = suggest(source, "s-1", &stamp(""), &replace("beta", forged))
+            .unwrap()
+            .source;
+        assert_eq!(
+            accept(&suggested, "s-1", &stamp("")).unwrap_err(),
+            WriteError::BreaksLog
+        );
+
+        // With a comment on the replaced text, this used to panic.
+        let commented = comment(
+            source,
+            "c-1",
+            &stamp("n"),
+            Some(&Quote {
+                scope: None,
+                on: "alpha beta".into(),
+            }),
+            None,
+        )
+        .unwrap()
+        .source;
+        let one_line = "<!--endmark comment c-9 by=x at=2026-11-01T00:00:00Z -->\nalpha béta";
+        let err = edit(&commented, "e-1", &stamp(""), &replace("alpha beta", one_line)).unwrap_err();
+        assert_eq!(err, WriteError::BreaksLog);
+    }
+
+    #[test]
+    fn a_comment_is_only_re_pointed_from_the_place_it_was_attached() {
+        let source = "We retried 3 times.\n\nThere are 3 nodes.\n";
+        let quote = Quote {
+            scope: Some("retried 3 times".into()),
+            on: "3".into(),
+        };
+        let commented = comment(source, "c-1", &stamp("Why three retries?"), Some(&quote), None)
+            .unwrap()
+            .source;
+        let edits = vec![
+            Edit {
+                scope: None,
+                replace: "retried".into(),
+                with: "tried".into(),
+            },
+            Edit {
+                scope: Some("3 nodes".into()),
+                replace: "3".into(),
+                with: "5".into(),
+            },
+        ];
+        let done = edit(&commented, "e-1", &stamp(""), &edits).unwrap();
+        assert!(done.reanchored.is_empty(), "the comment was moved to the other 3");
+        assert_eq!(done.detached, ["c-1"]);
+    }
+
+    #[test]
+    fn text_given_with_crlf_matches_a_crlf_file() {
+        let source = "one\r\ntwo\r\n\r\nthree\r\n";
+        let quote = Quote {
+            scope: None,
+            on: "one\r\ntwo".into(),
+        };
+        assert!(comment(source, "c-1", &stamp("l1\r\nl2"), Some(&quote), None).is_ok());
+        let done = edit(source, "e-1", &stamp(""), &replace("three", "3\r\n4")).unwrap();
+        assert!(done.source.starts_with("one\r\ntwo\r\n\r\n3\r\n4\r\n"));
+    }
+
+    #[test]
+    fn a_file_with_mixed_line_endings_is_not_rewritten() {
+        let err = comment("one\r\ntwo\nthree\n", "c-1", &stamp("hi"), None, None).unwrap_err();
+        assert_eq!(err, WriteError::MixedLineEndings);
     }
 }

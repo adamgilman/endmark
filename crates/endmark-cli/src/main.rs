@@ -318,9 +318,18 @@ fn replace_file(path: &str, read: &str, new: &str) -> Result<(), String> {
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
     let temp = real.with_file_name(format!(".{name}.endmark-{}.tmp", std::process::id()));
-    let written = std::fs::write(&temp, new)
-        .and_then(|()| std::fs::metadata(&real))
-        .and_then(|meta| std::fs::set_permissions(&temp, meta.permissions()))
+    let meta = std::fs::metadata(&real).map_err(fail)?;
+    if meta.permissions().readonly() {
+        return Err(format!("{path}: the file is read-only"));
+    }
+    // The temporary file gets the mode of the target before it gets the
+    // content, so a private file is never readable by others on the way.
+    let written = std::fs::File::create(&temp)
+        .and_then(|mut file| {
+            file.set_permissions(meta.permissions())?;
+            file.write_all(new.as_bytes())?;
+            file.sync_all()
+        })
         .map_err(fail)
         .and_then(|()| match std::fs::read(&real) {
             Ok(current) if current == read.as_bytes() => Ok(()),
@@ -573,10 +582,11 @@ fn write_command(command: &str, args: &[String]) -> Result<ExitCode, String> {
         }
     }
     // The summary goes to standard error when the file itself is on standard output.
+    // The file is already written, so a closed pipe here is not a failure.
     if to_stdout {
-        eprintln!("{summary}");
+        let _ = writeln!(io::stderr(), "{summary}");
     } else {
-        println!("{summary}");
+        let _ = writeln!(io::stdout(), "{summary}");
     }
     Ok(ExitCode::SUCCESS)
 }
