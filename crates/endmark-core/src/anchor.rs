@@ -106,27 +106,48 @@ pub(crate) fn applicability(body: &str, cuts: &[usize], edits: &[Edit]) -> Appli
     }
 }
 
-/// Can the new text of every edit still be found? Best effort (RFC 8.3).
-fn landing(body: &str, cuts: &[usize], edits: &[Edit]) -> Landing {
-    let located = edits.iter().all(|edit| {
-        if edit.with.is_empty() {
-            return false; // a deletion leaves nothing to find
-        }
-        // The scope is rewritten with the edit applied.
-        let scope = edit.scope.as_ref().map(|scope| {
-            if edit.replace.is_empty() {
-                scope.clone()
-            } else {
-                scope.replacen(&edit.replace, &edit.with, 1)
+/// Where the new text of each edit of an applied change is now, if it can
+/// still be found. Best effort (RFC 8.3).
+fn landed_ranges(body: &str, cuts: &[usize], edits: &[Edit]) -> Vec<Option<(usize, usize)>> {
+    edits
+        .iter()
+        .map(|edit| {
+            if edit.with.is_empty() {
+                return None; // a deletion leaves nothing to find
             }
-        });
-        matches!(resolve(body, cuts, &edit.with, scope.as_deref()), Resolved::At(..))
-    });
-    if located {
+            // The scope is rewritten with the edit applied.
+            let scope = edit.scope.as_ref().map(|scope| {
+                if edit.replace.is_empty() {
+                    scope.clone()
+                } else {
+                    scope.replacen(&edit.replace, &edit.with, 1)
+                }
+            });
+            match resolve(body, cuts, &edit.with, scope.as_deref()) {
+                Resolved::At(start, end) => Some((start, end)),
+                _ => None,
+            }
+        })
+        .collect()
+}
+
+fn landing(ranges: &[Option<(usize, usize)>]) -> Landing {
+    if ranges.iter().all(Option::is_some) {
         Landing::Located
     } else {
         Landing::Unlocatable
     }
+}
+
+/// The range each edit of an open suggestion would replace.
+fn replace_ranges(body: &str, cuts: &[usize], edits: &[Edit]) -> Vec<Option<(usize, usize)>> {
+    edits
+        .iter()
+        .map(|edit| match edit_range(body, cuts, edit) {
+            Resolved::At(start, end) => Some((start, end)),
+            _ => None,
+        })
+        .collect()
 }
 
 pub(crate) fn derive(body: &str, cuts: &[usize], items: &mut [Item], diags: &mut Vec<Diagnostic>) {
@@ -187,6 +208,7 @@ pub(crate) fn derive(body: &str, cuts: &[usize], items: &mut [Item], diags: &mut
                 SuggestionState::Open => {
                     let a = applicability(body, cuts, &s.edits);
                     s.applicability = Some(a);
+                    s.ranges = replace_ranges(body, cuts, &s.edits);
                     if let Applicability::Stale(reason) = a {
                         let why = match reason {
                             StaleReason::Detached => "the text of an edit is not in the body",
@@ -204,14 +226,20 @@ pub(crate) fn derive(body: &str, cuts: &[usize], items: &mut [Item], diags: &mut
                 SuggestionState::Accepted => {
                     s.in_effect = live;
                     // A change that is not in effect has no new text to find.
-                    s.landing = live.then(|| landing(body, cuts, &s.edits));
+                    if live {
+                        s.ranges = landed_ranges(body, cuts, &s.edits);
+                        s.landing = Some(landing(&s.ranges));
+                    }
                 }
                 // Rejected and retracted suggestions are not located.
                 SuggestionState::Rejected | SuggestionState::Retracted => {}
             },
             Detail::Edit(e) | Detail::Revert(e) => {
                 e.in_effect = live;
-                e.landing = live.then(|| landing(body, cuts, &e.edits));
+                if live {
+                    e.ranges = landed_ranges(body, cuts, &e.edits);
+                    e.landing = Some(landing(&e.ranges));
+                }
             }
         }
     }

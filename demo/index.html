@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Endmark demo</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./src/demo.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div>
+        <h1>Endmark demo</h1>
+        <p>
+          Endmark keeps comments, suggestions and history for a Markdown file in HTML-comment records at the end of
+          that file. The left pane draws the file. The right pane is the file itself. Act on the left and watch the
+          right change. Select text on the left to comment on it or to suggest a replacement.
+        </p>
+      </div>
+      <div class="top-actions">
+        <button type="button" id="edit-body">Edit the body directly</button>
+        <button type="button" id="reset">Reset</button>
+      </div>
+    </header>
+
+    <p id="status" class="status" role="status" aria-live="polite">Loading.</p>
+
+    <main class="panes">
+      <section class="pane" aria-labelledby="doc-title">
+        <h2 id="doc-title">Document</h2>
+        <div id="doc"></div>
+      </section>
+      <section class="pane" aria-labelledby="source-title">
+        <h2 id="source-title">Source <span class="pane-note">read-only</span></h2>
+        <ol id="source" class="source" tabindex="0" aria-label="The file as text"></ol>
+        <h3 id="findings-title">Linter findings</h3>
+        <ul id="findings" class="findings" aria-labelledby="findings-title"></ul>
+      </section>
+    </main>
+
+    <dialog id="body-dialog" aria-labelledby="body-dialog-title">
+      <form method="dialog" id="body-form">
+        <h2 id="body-dialog-title">Edit the body directly</h2>
+        <p>
+          This changes the body the way a tool that does not know Endmark would. No record is written. Try changing
+          <code>port 8080</code> and watch the comment on it move to the unanchored tray.
+        </p>
+        <textarea id="body-text" rows="16" spellcheck="false" aria-label="Body text"></textarea>
+        <div class="dialog-actions">
+          <button type="submit" value="apply" class="primary">Apply</button>
+          <button type="submit" value="cancel" formnovalidate>Cancel</button>
+        </div>
+      </form>
+    </dialog>
+
+    <footer class="foot">
+      <p>
+        Nothing is saved or sent. The document lives in this page's memory, your actions are attributed to
+        <code>by=you</code>, and a reload returns the original example.
+      </p>
+    </footer>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

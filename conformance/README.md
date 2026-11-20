@@ -49,6 +49,7 @@ The expectations were written by hand from RFC 0001. They were not captured from
 | `reverted_by` | The id of the revert that names this change. Absent or `null` when there is none. It stays set when that revert is itself reverted; `status` then says the change is in effect again. |
 | `events` | The action records that took effect on the item, in file order, each with `verb`, `line`, `by`, `at`, `for` and `note`. A revert adds a `revert` event to the change it undoes. An array is compared as a whole, so give every key of every event. |
 | `reason` | Why a suggestion is stale: `detached`, `ambiguous` or `overlap` |
+| `edits` | The edits of a suggestion, an edit or a revert, each with `in`, `replace`, `with` and `range`. `range` is a byte range in the body: for an open suggestion, the text the edit would replace; for a change in effect, where its new text is now. It is `null` when that cannot be found. |
 
 ## Finding keys
 

@@ -17,5 +17,5 @@ name = "endmark"
 path = "src/main.rs"
 
 [dependencies]
-endmark-core = { path = "../endmark-core", version = "0.1.0-alpha.1" }
+endmark-core = { path = "../endmark-core", version = "0.1.0-alpha.1", features = ["json"] }
 serde_json = "1"

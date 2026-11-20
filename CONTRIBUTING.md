@@ -25,6 +25,8 @@ CI runs the same three commands, on Linux, macOS and Windows.
 
 - `crates/endmark-core/` is the library: no I/O, no dependencies beyond `pulldown-cmark`.
 - `crates/endmark-cli/` is the `endmark` command.
+- `crates/endmark-wasm/` is the library as a WebAssembly module. The renderer in `packages/render/` and the demo page in `demo/` are TypeScript on top of it, built and tested with [Bun](https://bun.sh); their READMEs give the commands.
+- `spec/endmark.md` is generated from the RFC. After changing the RFC, run `UPDATE_SPEC=1 cargo test --test spec`.
 
 ## Fixtures
 

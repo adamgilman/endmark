@@ -408,7 +408,7 @@ An aware renderer draws the body as ordinary Markdown, then layers records on to
 
 ### 12.1 Starting point
 
-Milestones M1 and M2 are implemented: `endmark-core` with the read path and one write operation per verb, the `endmark` command with every command in the table in 12.3, and the reader and writer fixtures (12.6). The renderer and the demo page are still to be built, and so is the benchmark budget in CI from the M1 exit test. CI tests and builds on Linux, macOS and Windows, and pushing a version tag builds the release binaries.
+Milestones M1 to M5 are implemented, on 2026-11-20: `endmark-core` with the read path and one write operation per verb; the `endmark` command with every command in the table in 12.3; the reader and writer fixtures (12.6); the compatibility matrix (12.7); the renderer in `packages/render`; and the demo page in `demo`. Nothing has been released. The gaps against this RFC that are known are listed in 12.9.
 
 The draft spec came with a 145-line Python example parser. It was an illustration, not a foundation, and it is not part of this repository. Before it was set aside it was run for this RFC, on 2026-11-13, with two results worth keeping.
 
@@ -455,10 +455,12 @@ The conformance suite is plain files, so an implementation in any language can b
 ### 12.3 Layout
 
 ```text
-spec/endmark.md        The normative spec: sections 3 to 11 of this RFC, once accepted
+spec/endmark.md        The normative spec: sections 3 to 11 of this RFC and its worked example, generated from it
 conformance/          Fixtures: an input .md and the expected .json beside it
 crates/endmark-core/   Scanner, parser, state, anchoring, diagnostics, writer operations
-crates/endmark-cli/    The `endmark` binary: `lint` first, then the other commands
+crates/endmark-cli/    The `endmark` binary
+crates/endmark-wasm/   endmark-core as a WebAssembly module, behind one JSON call
+compat/               The compatibility matrix (12.7)
 packages/render/      The review renderer, in TypeScript, on endmark-core as WebAssembly
 demo/                 The demo page (12.5): static files built on the renderer
 rfcs/                 This document and later ones
@@ -634,25 +636,31 @@ The suite MUST contain at least one fixture for every MUST and every **(new)** r
 - quotes that contain backticks, `-->`, `--!>`, `<!--`, and a literal `--\>`;
 - CRLF input.
 
-### 12.7 Compatibility evidence so far
+### 12.7 Compatibility evidence
 
-These results come from the draft spec, run on 2026-11-11 against Python builds. They have not been re-run for this RFC.
+The promise that a plain renderer shows the document and nothing else is checked by `compat/run.py`. It renders every conformance fixture that a reader accepts without errors, once whole and once as the body alone, through each engine. Records are hidden when the two results are the same HTML once comments are removed. CI runs it on every pull request and fails if an engine that should hide records shows one. `compat/RESULTS.md` holds the last run and `compat/requirements.txt` and `compat/package.json` pin the versions.
 
-| Renderer | A multi-line record with fences and blank lines |
+Results on 2026-11-20, over 31 fixtures:
+
+| Engine | Result |
 | --- | --- |
-| commonmark-py (CommonMark reference port) | Hidden: passed through as an HTML comment |
-| markdown-it-py 4.2, HTML on | Hidden |
-| markdown-it-py 4.2, HTML off | **Visible**: printed as escaped text, fences drawn as code blocks |
-| mistune 3.4 | Hidden |
-| Python-Markdown 3.11 | Hidden |
-| cmark-gfm, safe mode | Removed, replaced by a placeholder comment |
-| cmark-gfm, unsafe mode | Hidden |
+| commonmark-py 0.9.2 (CommonMark reference port) | Hidden |
+| commonmark.js 0.31.2 (CommonMark reference implementation) | Hidden |
+| markdown-it-py 4.3.0, HTML on | Hidden |
+| markdown-it 14.1.0 (JavaScript), HTML on | Hidden |
+| marked 15.0.12 | Hidden |
+| mistune 3.4.0 | Hidden |
+| Python-Markdown 3.11.3 | Hidden in 30 of 31. See below. |
+| markdown-it-py, HTML off | **Visible**: records are printed as text (D-4) |
+| markdown-it (JavaScript), HTML off, which is its default | **Visible** (D-4) |
+| cmark-gfm, unsafe mode | Expected hidden. Run in CI only. |
+| cmark-gfm, safe mode, which is its default | Expected removed with all other raw HTML. Run in CI only. |
 
-- For the worked example, rendering the whole file and rendering the body alone gave identical HTML once comments were removed, on commonmark-py and cmark-gfm.
-- An unescaped `-->` inside a record leaked the rest of the record as visible text everywhere.
-- `--!>` closed the comment early in Python-Markdown. Browsers do the same under the HTML standard.
+- **Python-Markdown and an unclosed `<!--` in the body.** If the body itself contains `<!--` with no `-->` after it, Python-Markdown reads it as the start of a comment. That swallows the start of the first record and leaves its end visible. CommonMark engines treat the same text as plain text, and so does the scanner, so `endmark lint` does not report it. Python-Markdown is not a CommonMark engine. The fixture is `escapes-in-quotes`.
+- **Malformed records leak.** An unescaped `-->` inside a record shows the rest of the record as visible text in every engine. `--!>` closes the comment early in Python-Markdown, and in browsers under the HTML standard. `endmark lint` reports both as errors, and the writing commands never produce them.
+- **markdown-it defaults to HTML off.** A site that uses the JavaScript markdown-it with its defaults will print records. This is the most likely place for a reader to meet D-4.
 
-**Not yet tested:** JavaScript markdown-it, marked, Obsidian, the VS Code preview, and GitHub and GitLab web rendering. The last two are known to strip HTML comments, but this has not been verified.
+**Not tested:** Obsidian, the VS Code preview, and GitHub and GitLab web rendering. They cannot be run by a script here and have not been checked by hand. GitHub and GitLab are believed to strip HTML comments, but that has not been verified.
 
 ### 12.8 Milestones
 
@@ -667,6 +675,31 @@ Each milestone ends when its exit test passes.
 | M4 | Reference renderer | `endmark-core` builds to WebAssembly. All four views work on the worked example, including the two-diagram view and validation. |
 | M5 | Demo page | Every action in the table in 12.5 works on the worked example and changes the source as described. Reloading restores the example. The page makes no network request after load and writes nothing to browser storage. |
 | M6 | v0.1 release | Spec, packages and demo page published. Token frozen. |
+
+### 12.9 Known gaps in the reference implementation
+
+Recorded on 2026-11-20. Each is a place where the code does less than this RFC says, or where a claim has not been checked.
+
+**Renderer (section 11)**
+
+- A comment that was re-pointed and later detached is shown in the tray with its latest quote, not its original one.
+- Added elements in a diagram are marked for flowcharts only. Math blocks are not drawn as pictures.
+- There is one gutter bar per edited block, not one per edit.
+- Raw HTML in the body is shown as text in every view. A plain renderer with HTML on would pass it through.
+- Overlapping suggestions on prose, and line diffs of code blocks other than diagrams, are implemented but have not been exercised in a browser.
+
+**Demo page (12.5)**
+
+- Selecting text maps the rendered selection back to source by a heuristic. When it fails, the core refuses the quote and the page says so.
+- There is no way to add a comment on the whole document.
+- A direct body edit assumes the records are all at the end of the file, which holds for the example.
+- Diagram code is split into files that load on demand from the page's own directory. Editing the body into another kind of diagram fetches one more file. No request leaves that directory.
+
+**Not checked**
+
+- Touch selection, Firefox, Safari and accessibility of the demo page. It was tested in Chromium only.
+- Obsidian, the VS Code preview, GitHub and GitLab (12.7).
+- The release workflow. No release has been made, so it has not run on a tag.
 
 ## 13. Decisions needed
 

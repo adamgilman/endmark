@@ -21,6 +21,15 @@ name = "endmark-core"
 version = "0.1.0-alpha.1"
 dependencies = [
  "pulldown-cmark",
+ "serde_json",
+]
+
+[[package]]
+name = "endmark-wasm"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "endmark-core",
+ "serde_json",
 ]
 
 [[package]]

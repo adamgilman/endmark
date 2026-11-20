@@ -2,7 +2,7 @@
 
 Endmark adds comments, grouped suggestions and a decision history to a Markdown file without changing how the file renders. The Markdown body stays untouched, and all review state lives in an append-only log of HTML-comment records at the end of the file.
 
-**Status: alpha.** The format, the linter and the command-line tool work and are tested. A review renderer and a demo page are planned and not built. The format is defined in [RFC 0001](rfcs/0001-endmark.md) and may still change before 0.1.0.
+**Status: alpha.** The format, the linter, the command-line tool, a review renderer and a demo page all exist and are tested. Nothing has been released yet. The format is defined in [RFC 0001](rfcs/0001-endmark.md) and may still change before 0.1.0.
 
 ## Install
 
@@ -192,11 +192,28 @@ After `accept`, `edit` or `revert`, the command also tells you which open commen
 | `crates/endmark-core/` | The reader and the writer: scanner, records, state, anchoring, findings, and one write operation per verb |
 | `crates/endmark-cli/` | The `endmark` command |
 | `conformance/` | Fixtures any implementation can be checked against |
+| `spec/` | The format alone: the normative sections of the RFC |
+| `crates/endmark-wasm/` | `endmark-core` as a WebAssembly module |
+| `packages/render/` | The review renderer, in TypeScript |
+| `demo/` | The demo page |
+| `compat/` | The check that plain Markdown renderers hide records |
 
-## Planned
+## The demo page
 
-- a reference review renderer
-- a demo page that shows a document beside its raw source and lets you watch the source change as you comment, suggest, accept and revert
+The demo page shows one document twice: drawn with its comments and suggestions on the left, and as raw source on the right. Comment, suggest, accept, revert, or edit the text directly, and watch what each one does to the file. It saves nothing and sends nothing.
+
+```sh
+cd packages/render
+bun install
+bun run build     # builds the WebAssembly module and demo/dist/
+bun run serve     # http://127.0.0.1:4173/
+```
+
+The page is static files. It has no format logic of its own: every read and write goes through `endmark-core`, compiled to WebAssembly, so it cannot drift from the command-line tool. See [packages/render](packages/render/README.md) and [demo](demo/README.md).
+
+## Does it really stay hidden?
+
+Yes in every CommonMark engine tested, with raw HTML left on. [compat/](compat/README.md) renders the fixtures through nine Markdown engines on every pull request and fails if a record shows. Engines with raw HTML turned off, which is the default of the JavaScript markdown-it, print records as text. Section 12.7 of the RFC has the table and the one known exception.
 
 ## Contributing
 

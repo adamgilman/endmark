@@ -9,9 +9,10 @@ use std::path::Path;
 use std::process::ExitCode;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use endmark_core::json;
 use endmark_core::write::{self, Stamp};
-use endmark_core::{Applicability, Detail, Diagnostic, Document, Edit, Item, Landing, Quote, Verb};
-use serde_json::{json, Map, Value};
+use endmark_core::{Applicability, Detail, Document, Edit, Item, Landing, Quote, Verb};
+use serde_json::{json, Value};
 
 const USAGE: &str = "\
 endmark: comments, suggestions and history for Markdown files
@@ -227,7 +228,7 @@ fn lint(options: Options) -> Result<ExitCode, String> {
                     "file": name,
                     "errors": doc.errors(),
                     "warnings": doc.warnings(),
-                    "findings": doc.diagnostics.iter().map(finding_json).collect::<Vec<_>>(),
+                    "findings": doc.diagnostics.iter().map(json::finding).collect::<Vec<_>>(),
                 })
             ),
             Format::Text => doc.diagnostics.iter().try_for_each(|d| {
@@ -261,17 +262,6 @@ fn lint(options: Options) -> Result<ExitCode, String> {
         ExitCode::from(1)
     } else {
         ExitCode::SUCCESS
-    })
-}
-
-fn finding_json(d: &Diagnostic) -> Value {
-    json!({
-        "line": d.line,
-        "severity": d.severity().as_str(),
-        "code": d.code.as_str(),
-        "id": d.id,
-        "message": d.message,
-        "hint": d.hint(),
     })
 }
 
@@ -682,7 +672,7 @@ fn status(options: Options) -> Result<ExitCode, String> {
     let doc = endmark_core::parse(&read(&path)?);
     let mut out = io::stdout().lock();
     let written = match options.format {
-        Format::Json => writeln!(out, "{}", document_json(display_name(&path), &doc)),
+        Format::Json => writeln!(out, "{}", json::document(display_name(&path), &doc)),
         Format::Text => status_text(&mut out, &doc),
     };
     written.map_err(|e| format!("standard output: {e}"))?;
@@ -760,102 +750,4 @@ fn status_text(out: &mut impl Write, doc: &Document) -> io::Result<()> {
         )?;
     }
     Ok(())
-}
-
-fn document_json(file: &str, doc: &Document) -> Value {
-    json!({
-        "file": file,
-        "body": doc.body,
-        "items": doc.items.iter().map(item_json).collect::<Vec<_>>(),
-        "diagnostics": doc.diagnostics.iter().map(finding_json).collect::<Vec<_>>(),
-        "errors": doc.errors(),
-        "warnings": doc.warnings(),
-    })
-}
-
-fn edits_json(edits: &[endmark_core::Edit]) -> Value {
-    edits
-        .iter()
-        .map(|e| json!({"in": e.scope, "replace": e.replace, "with": e.with}))
-        .collect()
-}
-
-/// One item. Keys that do not apply to an item are left out, not set to null:
-/// `thread` appears on thread roots only, `root` on replies only, and `status`,
-/// `reason` and `reverted_by` only when there is one.
-fn item_json(item: &Item) -> Value {
-    let mut m = Map::new();
-    let mut put = |key: &str, value: Value| {
-        m.insert(key.to_string(), value);
-    };
-    put("id", json!(item.id));
-    put("kind", json!(item.kind()));
-    put("line", json!(item.line));
-    put("by", json!(item.by));
-    put("at", json!(item.at));
-    put("for", json!(item.on_behalf_of));
-    put("re", json!(item.re));
-    put("note", json!(item.note));
-    match &item.detail {
-        Detail::Comment(c) => {
-            put("state", json!(if c.retracted { "retracted" } else { "live" }));
-            match c.thread {
-                Some(thread) => put("thread", json!(thread.as_str())),
-                None => put("root", json!(c.root)),
-            }
-            put("anchor", json!(c.anchor.as_str()));
-            if let endmark_core::Anchor::Attached { start, end } = c.anchor {
-                put("range", json!([start, end]));
-            }
-            put(
-                "quote",
-                match &c.quote {
-                    Some(q) => json!({"in": q.scope, "on": q.on}),
-                    None => Value::Null,
-                },
-            );
-        }
-        Detail::Suggestion(s) => {
-            put("state", json!(s.state.as_str()));
-            match (s.applicability, s.landing) {
-                (Some(Applicability::Applicable), _) => put("status", json!("applicable")),
-                (Some(Applicability::Stale(reason)), _) => {
-                    put("status", json!("stale"));
-                    put("reason", json!(reason.as_str()));
-                }
-                (None, Some(landing)) => put("status", json!(landing.as_str())),
-                (None, None) if !s.in_effect => put("status", json!("reverted")),
-                (None, None) => {}
-            }
-            if let Some(by) = &s.reverted_by {
-                put("reverted_by", json!(by));
-            }
-            put("edits", edits_json(&s.edits));
-        }
-        Detail::Edit(e) | Detail::Revert(e) => {
-            put("state", json!("applied"));
-            put("status", json!(e.landing.map_or("reverted", Landing::as_str)));
-            if let Some(by) = &e.reverted_by {
-                put("reverted_by", json!(by));
-            }
-            put("edits", edits_json(&e.edits));
-        }
-    }
-    put(
-        "events",
-        item.events
-            .iter()
-            .map(|e| {
-                json!({
-                    "verb": e.verb.as_str(),
-                    "line": e.line,
-                    "by": e.by,
-                    "at": e.at,
-                    "for": e.on_behalf_of,
-                    "note": e.note,
-                })
-            })
-            .collect(),
-    );
-    Value::Object(m)
 }

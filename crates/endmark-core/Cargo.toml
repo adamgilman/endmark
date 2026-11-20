@@ -15,6 +15,9 @@ exclude = ["tests"]
 default = ["commonmark"]
 # Cross-checks every record against CommonMark block structure (the `visible-record` finding).
 commonmark = ["dep:pulldown-cmark"]
+# The JSON form of a document that `endmark status --format json` prints.
+json = ["dep:serde_json"]
 
 [dependencies]
 pulldown-cmark = { version = "0.13", default-features = false, optional = true }
+serde_json = { version = "1", optional = true }

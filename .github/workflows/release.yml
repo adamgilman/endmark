@@ -3,9 +3,13 @@ name: Release
 # Pushing a tag such as v0.1.0 builds the binaries and creates a GitHub
 # release with them. A tag with a hyphen, such as v0.1.0-alpha.1, makes a
 # pre-release.
+#
+# It can also be started by hand from the Actions tab. That run builds and
+# packages everything but creates no release: a rehearsal.
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -16,6 +20,7 @@ env:
 jobs:
   check:
     name: Tag matches the crate version
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -30,6 +35,8 @@ jobs:
   build:
     name: ${{ matrix.target }}
     needs: check
+    # Also run when the check was skipped, which is the rehearsal.
+    if: always() && needs.check.result != 'failure'
     strategy:
       fail-fast: false
       matrix:
@@ -47,7 +54,9 @@ jobs:
       - name: Package
         shell: bash
         run: |
-          name="endmark-$GITHUB_REF_NAME-${{ matrix.target }}"
+          version="$GITHUB_REF_NAME"
+          if [ "$GITHUB_EVENT_NAME" != "push" ]; then version="rehearsal"; fi
+          name="endmark-$version-${{ matrix.target }}"
           mkdir "$name"
           cp README.md LICENSE "$name/"
           if [ "${{ runner.os }}" = "Windows" ]; then
@@ -68,6 +77,7 @@ jobs:
   publish:
     name: Create the release
     needs: build
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
