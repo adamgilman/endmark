@@ -127,6 +127,7 @@ value       = 1*<any character except whitespace>
 | `by` | Yes | Author handle. Non-human authors are prefixed `agent:`. |
 | `at` | Yes | RFC 3339 timestamp in UTC, ending in `Z`. |
 | `for` | No | The person an agent acted for. |
+| `line` | No | On a `comment` or `anchor` with a quote: the line of the file on which the quote started when the record was written. A guidepost, never used to match (6.1). |
 | `re` | `revert`: yes. `comment`: no. | On a comment, the item being replied to. On a revert, the change being undone (section 7). |
 
 A record missing `by` or `at` is malformed **(new)**. So is a `revert` missing `re` **(new)**.
@@ -134,7 +135,7 @@ A record missing `by` or `at` is malformed **(new)**. So is a `revert` missing `
 ### 5.2 Content
 
 - The multi-line form ends with a line that is exactly `-->`. The single-line form has no content.
-- A **structural fence** is a backtick fence at column 0 whose info string is exactly `on`, `in`, `replace` or `with`. It is closed by a line of at least as many backticks and nothing else.
+- A **structural fence** is a backtick fence at column 0 whose info string is exactly `on`, `in`, `near`, `replace` or `with`. It is closed by a line of at least as many backticks and nothing else.
 - Fence content is literal. It is the lines between the opening and closing fence lines, joined by LF, with no trailing newline. To end the content with a newline, leave an empty last line.
 - If the content contains a run of backticks, use a longer fence, as in Markdown.
 - Everything outside structural fences is the **note**, written in Markdown. The position of the note relative to the fences carries no meaning.
@@ -184,7 +185,7 @@ A record points at the body by quoting source text that must match exactly once.
 - Matching is on raw Markdown source, byte for byte, after CRLF normalisation. Files are UTF-8, and no Unicode normalisation is applied **(new)**.
 - Occurrences are counted at every start position, so `aa` occurs twice in `aaa` **(new)**.
 - A quote may span lines and blocks, and may sit inside a code block.
-- Zero matches is **detached**. More than one is **ambiguous**. Readers treat both as **unanchored** and MUST NOT guess.
+- Zero matches is **detached**. More than one is **ambiguous**. Readers treat both as **unanchored** and MUST NOT guess. Guideposts (6.1) do not change this.
 - Writers MUST emit anchors that resolve at write time, widening the quote or adding `in` until it is unique.
 - A comment with no `on` fence applies to the whole document, or to the item named by `re`.
 
@@ -209,13 +210,51 @@ retried 3 times
 
 The cost of quote anchors is that they detach when the quoted text changes. An aware editor repairs this by appending an `anchor` record. An unaware editor leaves the comment detached, with its original quote preserved.
 
+### 6.1 Guideposts
+
+Added on 2026-11-20. A quote says what text a comment is about. A **guidepost** says roughly where that text was when the record was written. Guideposts exist for one purpose: when a quote stops matching, they help a tool propose where the comment belongs now.
+
+A `comment` or `anchor` record that has an `on` fence MAY carry two guideposts:
+
+- a `line` attribute: the 1-based line of the file on which the quote started;
+- a `near` fence after the `on` fence: the lines around the quote, as literal source text.
+
+````text
+<!--endmark comment c-9d1t by=adam at=2026-11-11T17:20:00Z line=13
+```in
+retried 3 times
+```
+```on
+3
+```
+```near
+Failed deliveries are retried 3 times with a fixed 5 second delay.
+```
+Should this be configurable?
+-->
+````
+
+**Guideposts are imprecise by design.** Lines shift whenever anyone adds a line above, and the surrounding text gets edited. So:
+
+- A reader MUST NOT use a guidepost to decide whether or where a quote matches. A comment whose quote is detached or ambiguous is unanchored, however clearly its guideposts point somewhere.
+- A reader MUST NOT report a guidepost that no longer fits. A `line` that is now wrong is normal.
+- An `anchor` record replaces the guideposts along with the quote. An anchor with none leaves the comment with none.
+- A `near` fence with no `on` fence makes the record malformed. A `line` value that is not a positive number is ignored, as an unknown attribute is. A `line` on a record with no quote is ignored.
+- Writers SHOULD write both guideposts. The reference writer stores as `near` the unbroken run of non-blank lines around the quote, at most three lines to either side, and omits it when it would equal the quote.
+
+**Repair suggestions.** A tool MAY use guideposts to propose a new quote for an unanchored comment. A proposal has no effect on state. The comment moves only when someone appends an `anchor` record, which is an act with an author and a time like any other. This keeps every reader in agreement about where a comment is, whatever heuristics their tools use, and it keeps every move in the log.
+
+How a tool finds a candidate is not specified. Section 12.4 describes what the reference linter does.
+
+**Why not store the line number as the anchor.** A line number goes wrong silently. In a list of identical lines, a comment stored as "line 12" attaches to a different item the moment someone inserts a line above, and nothing reports it. A quote that stops matching is reported.
+
 ## 7. Record types
 
 Four verbs create items and six act on them.
 
 | Verb | Id refers to | Content | Meaning |
 | --- | --- | --- | --- |
-| `comment` | New comment | Optional `in` and `on`, and a note | A remark on quoted text or the whole document. With `re`, a reply to a comment or a remark on a suggestion. |
+| `comment` | New comment | Optional `in`, `on` and `near`, and a note | A remark on quoted text or the whole document. With `re`, a reply to a comment or a remark on a suggestion. |
 | `suggest` | New suggestion | A note, and one or more edits | A proposed change set. Its edits are accepted or rejected together. |
 | `edit` | New applied change | Same as `suggest` | A change already made to the body, logged for history. Optional (D-3). |
 | `revert` | New revert | `re`, an optional note, and one or more edits | Undoes the change named by `re`. Its edits are the ones the writer applied to the body in the same write **(new)**. |
@@ -224,7 +263,7 @@ Four verbs create items and six act on them.
 | `retract` | Own comment or suggestion | Optional note | Withdrawn by its author. |
 | `resolve` | A thread's root comment | Optional note | Thread closed. |
 | `reopen` | A thread's root comment | Optional note | Thread open again. |
-| `anchor` | A comment | Optional `in`, and `on` | Re-points the comment after the body changed. The original quote stays in the log. |
+| `anchor` | A comment | Optional `in`, `on`, and optional `near` | Re-points the comment after the body changed. The original quote stays in the log. |
 
 **Grouping.** One `suggest` record is one group. Inside it, each `replace` fence starts a new edit and the `with` fence that follows completes it. An `in` fence applies to the next `replace` only. The note is the rationale for the whole group.
 
@@ -351,7 +390,7 @@ A file with CRLF line endings is written back with CRLF, and text given with CRL
 
 Accepting or reverting can detach comments. The writer SHOULD append `anchor` records for the comments it can re-point with certainty, in the same write.
 
-How a tool chooses the new quote is not specified. The reference implementation re-points a comment only when its quote was exactly the `replace` text of an edit it has just applied, whether by accept or by revert, and re-points it to that edit's `with` text, adding `in` if needed for uniqueness. Everything else stays detached for a person to repair.
+How a tool chooses the new quote is not specified. The reference implementation re-points a comment only when its quote was exactly the `replace` text of an edit it has just applied, whether by accept or by revert, and re-points it to that edit's `with` text, adding `in` if needed for uniqueness. Everything else stays detached for a person to repair, with the help of repair suggestions (6.1) if they ask for them.
 
 ### 9.5 Concurrent writers
 
@@ -484,7 +523,7 @@ pub struct Document {
 
 | Command | Does |
 | --- | --- |
-| `endmark lint FILE...` | Validates files (12.4). The first command to ship. |
+| `endmark lint FILE...` | Validates files (12.4). The first command to ship. With `--suggest`, also says where each unanchored comment probably belongs. |
 | `endmark body FILE` | Prints the body only |
 | `endmark status FILE` | Lists every item with its state; `--format json` for tools |
 | `endmark comment FILE` | Comment on quoted text (`--on`, with an optional `--in`), or on the whole document |
@@ -495,6 +534,7 @@ pub struct Document {
 | `endmark reject`, `retract FILE ID` | Append the action |
 | `endmark resolve`, `reopen FILE ID` | Append the action. `ID` may be any comment of the thread; the record names the root. |
 | `endmark anchor FILE ID` | Re-point a comment at new text (`--on`, with an optional `--in`) |
+| `endmark repair FILE [ID...]` | Re-points unanchored comments for which one place clearly stands out, by appending `anchor` records (6.1, 12.4). `--min-score N` sets how sure to be; the default is 80. |
 | `endmark revert FILE ID` | Undo a change: apply its edits backwards and append a `revert` record. `ID` is an accepted suggestion, an `edit` or a revert, and may be any link of a chain: the command follows the chain to its tip (9.3). It refuses if `ID` is not in effect, and names the id that would bring it back. `--by` or `ENDMARK_BY` gives the author; `--note`, `--for`, `--id`, `--at` and `--dry-run` are optional. |
 | `endmark log FILE` | Prints history, newest first; `--format json` for tools |
 
@@ -577,10 +617,40 @@ notes.md:63: warning[detached] c-7f3k: quote "port 8080" not found in body
 | `dangling-reply` | Warning | `re` names no known item | 8.1 |
 | `body-after-log` | Warning | Body text follows a record | 4.3 |
 | `unknown-verb` | Warning | The verb is not one of the ten | 4.3 |
-| `unknown-attribute` | Warning | An attribute is not one of the four | 4.3 |
+| `unknown-attribute` | Warning | An attribute is not one of the five, or `line` is not a positive number | 4.3, 6.1 |
 | `bad-timestamp` | Warning | `at` is not an RFC 3339 UTC timestamp | 5.1 |
 
 Unanchored and stale items are warnings because unaware edits cause them legitimately. An agent checking its own write SHOULD use `--strict`, since a writer must emit anchors that resolve at write time (section 6).
+
+**Repair suggestions (`--suggest`)**
+
+Off by default, so that a plain `lint` is fast and reports only facts. With `--suggest`, each `detached` or `ambiguous` finding for which one place stands out gains a proposal: the line, a confidence from 0 to 100, how the place was found, and the quote that would attach there. In JSON it is a `repair` object on the finding, with `line`, `score`, `reason`, `on` and `in`. Nothing is written, and the finding and the exit status are the same with or without the flag.
+
+`endmark repair FILE [ID...]` writes the proposals as `anchor` records, each with a note saying how it was found. It skips any proposal below `--min-score`, 80 unless given, and says which it skipped.
+
+How the reference implementation finds a place:
+
+- **The quoted words are still in the body.** They are looked for with any run of whitespace matching any other, so that a re-wrapped paragraph or a re-aligned table still matches. Each place is scored by how many of the ten words that were before and after the quote, taken from the `near` fence and the scope, are still around it. The quoted words count as evidence too, so a long quote needs less from its surroundings than a short one. A quote that needed a scope was not unique when it was written, so its own words count for nothing and only the surroundings decide. Reason `exact-text`.
+- **The quoted words are gone.** The `near` lines, or failing that the quote itself, are searched for by edit distance over whole words, which survives inserted and deleted words. If the lines are found and something like the quote is inside them, the proposal is that (`similar-text`), widened to whole lines when the quote was whole lines. Otherwise the proposal quotes the lines themselves (`surrounding-lines`). A search needs at least three words to go on.
+- **A place must stand out.** Nothing is proposed below 60, or when two places score within 8 points of each other.
+- **The line number only breaks ties.** When two places fit equally, the one nearer the `line` hint is proposed, at no more than 70, which is under the default threshold of `repair`. If they are equally near, nothing is proposed.
+
+Every proposal is a quote that matches exactly once, with an `in` scope added when needed. These numbers are the reference implementation's choices and are not part of the format.
+
+**How well it works.** Measured on 2026-11-20 by replaying the revision histories of 15 public documents: 14,700 comments placed, of which 2,356 lost their place as the documents were edited. `eval/README.md` has the method and the full table.
+
+| | Count |
+| --- | --- |
+| Proposed at 80 or more | 627, of which about 624 right (99.5%) |
+| Proposed at 60 to 79 | 507, of which at least 404 right |
+| Nothing proposed, and the text was gone | 383 |
+| Nothing proposed, though some of the text was still there | 839 |
+
+The 31 high-confidence proposals that a diff disputed were read by hand; three were wrong or doubtful. The known wrong answer is a deleted paragraph whose near-twin remains: the twin looks like an edited version of the original. The lower band has not been read by hand. When the search fails it mostly fails silent, on passages rewritten so heavily that only a person can say whether the comment still applies.
+
+The same replay found that 50 of 12,344 comments that stayed attached, 0.4%, were attached to other text, because the quoted words had been removed and the same words existed elsewhere. That is a property of quote anchoring which guideposts do not address: a reader consults no guidepost for a comment whose quote matches.
+
+On a 1.6 MB file with 300 comments that had all lost their place, `lint --suggest` took 1.0 s, against 0.2 s for plain `lint`.
 
 ### 12.5 Demo page
 
@@ -634,13 +704,14 @@ The suite MUST contain at least one fixture for every MUST and every **(new)** r
 - records shown inside body code fences;
 - body text appended after the log;
 - quotes that contain backticks, `-->`, `--!>`, `<!--`, and a literal `--\>`;
-- CRLF input.
+- CRLF input;
+- guideposts that are read, guideposts that point at a likely place for a detached quote and are not used, a `near` fence with no `on`, and a bad `line`.
 
 ### 12.7 Compatibility evidence
 
 The promise that a plain renderer shows the document and nothing else is checked by `compat/run.py`. It renders every conformance fixture that a reader accepts without errors, once whole and once as the body alone, through each engine. Records are hidden when the two results are the same HTML once comments are removed. CI runs it on every pull request and fails if an engine that should hide records shows one. `compat/RESULTS.md` holds the last run and `compat/requirements.txt` and `compat/package.json` pin the versions.
 
-Results on 2026-11-20, over 31 fixtures:
+Results on 2026-11-20, over 34 fixtures:
 
 | Engine | Result |
 | --- | --- |
@@ -650,7 +721,7 @@ Results on 2026-11-20, over 31 fixtures:
 | markdown-it 14.1.0 (JavaScript), HTML on | Hidden |
 | marked 15.0.12 | Hidden |
 | mistune 3.4.0 | Hidden |
-| Python-Markdown 3.11.3 | Hidden in 30 of 31. See below. |
+| Python-Markdown 3.11.3 | Hidden in 33 of 34. See below. |
 | markdown-it-py, HTML off | **Visible**: records are printed as text (D-4) |
 | markdown-it (JavaScript), HTML off, which is its default | **Visible** (D-4) |
 | cmark-gfm, unsafe mode | Expected hidden. Run in CI only. |
@@ -686,6 +757,7 @@ Recorded on 2026-11-20. Each is a place where the code does less than this RFC s
 - Added elements in a diagram are marked for flowcharts only. Math blocks are not drawn as pictures.
 - There is one gutter bar per edited block, not one per edit.
 - Raw HTML in the body is shown as text in every view. A plain renderer with HTML on would pass it through.
+- Repair suggestions (6.1) are not shown. The WebAssembly module answers `repairs`, but the renderer and demo do not call it yet.
 - Overlapping suggestions on prose, and line diffs of code blocks other than diagrams, are implemented but have not been exercised in a browser.
 
 **Demo page (12.5)**
@@ -774,6 +846,7 @@ Added on 2026-11-20, after the rules above were accepted:
 - The derived state "in effect", and that only changes in effect are located (8.2, 8.3).
 - The revert procedure, following a chain to its tip, the deletion rule, and anchor repair after a revert (9.3, 9.4).
 - Two renderer requirements about reverts (section 11), and `endmark revert` (12.3).
+- Guideposts: the `line` attribute and the `near` fence, which readers never match on, and repair suggestions, which change nothing until an `anchor` record is written (6.1). `endmark lint --suggest` and `endmark repair` (12.3, 12.4).
 
 ## 15. Licence and contributions
 
@@ -905,14 +978,17 @@ The three edits are applied to the body. Rewriting "port 8080" detaches `c-7f3k`
 ````text
 <!--endmark accept s-4q8d by=adam at=2026-11-11T17:40:00Z -->
 
-<!--endmark anchor c-7f3k by=adam at=2026-11-11T17:40:00Z
+<!--endmark anchor c-7f3k by=adam at=2026-11-11T17:40:00Z line=3
 ```on
 port 8443
+```
+```near
+Relay forwards webhook events to internal consumers. It listens on port 8443 by default.
 ```
 -->
 ````
 
-`c-7f3k` is attached again, to "port 8443".
+`c-7f3k` is attached again, to "port 8443". The anchor carries guideposts (6.1): the line the quote is on and the lines around it.
 
 ### A.4 After reverting `s-4q8d`
 
@@ -944,9 +1020,12 @@ port 8080
 ```
 -->
 
-<!--endmark anchor c-7f3k by=maria at=2026-11-12T09:15:00Z
+<!--endmark anchor c-7f3k by=maria at=2026-11-12T09:15:00Z line=3
 ```on
 port 8080
+```
+```near
+Relay forwards webhook events to internal consumers. It listens on port 8080 by default.
 ```
 -->
 ````
@@ -987,9 +1066,12 @@ port 8443
 ```
 -->
 
-<!--endmark anchor c-7f3k by=adam at=2026-11-16T10:00:00Z
+<!--endmark anchor c-7f3k by=adam at=2026-11-16T10:00:00Z line=3
 ```on
 port 8443
+```
+```near
+Relay forwards webhook events to internal consumers. It listens on port 8443 by default.
 ```
 -->
 ````

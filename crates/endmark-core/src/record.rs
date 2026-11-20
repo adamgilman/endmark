@@ -3,7 +3,7 @@
 use crate::diag::{Code, Diagnostic};
 use crate::escape::unescape;
 use crate::scan::{content_fence_close, content_fence_open, RawRecord};
-use crate::{Edit, Quote, Verb};
+use crate::{Edit, Hint, Quote, Verb};
 
 /// A well-formed record with a known verb.
 #[derive(Debug, Clone)]
@@ -18,6 +18,8 @@ pub(crate) struct Record {
     pub note: String,
     /// The quote of a `comment` or `anchor`.
     pub quote: Option<Quote>,
+    /// Guideposts for the quote: where it was when written (RFC 6.1).
+    pub hint: Hint,
     /// The edits of a `suggest`, `edit` or `revert`.
     pub edits: Vec<Edit>,
 }
@@ -95,6 +97,7 @@ enum Fence {
     In,
     Replace,
     With,
+    Near,
 }
 
 impl Fence {
@@ -104,6 +107,7 @@ impl Fence {
             "in" => Some(Fence::In),
             "replace" => Some(Fence::Replace),
             "with" => Some(Fence::With),
+            "near" => Some(Fence::Near),
             _ => None,
         }
     }
@@ -114,6 +118,7 @@ impl Fence {
             Fence::In => "in",
             Fence::Replace => "replace",
             Fence::With => "with",
+            Fence::Near => "near",
         }
     }
 }
@@ -148,16 +153,18 @@ fn parse_content(raw: &[String]) -> Result<(Vec<(Fence, String)>, String), ()> {
     Ok((blocks, note.join("\n").trim().to_string()))
 }
 
-type Structure = Result<(Option<Quote>, Vec<Edit>), (Code, String)>;
+type Structure = Result<(Option<Quote>, Option<String>, Vec<Edit>), (Code, String)>;
 
-/// `[in] [on]`, for `comment` and `anchor`.
+/// `[in] [on] [near]`, for `comment` and `anchor`.
 fn quote_structure(blocks: Vec<(Fence, String)>, on_required: bool) -> Structure {
     let mut scope: Option<String> = None;
     let mut on: Option<String> = None;
+    let mut near: Option<String> = None;
     for (kind, text) in blocks {
         match kind {
             Fence::In if scope.is_none() && on.is_none() => scope = Some(text),
             Fence::On if on.is_none() => on = Some(text),
+            Fence::Near if near.is_none() => near = Some(text),
             Fence::In => {
                 return Err((
                     Code::UnexpectedFence,
@@ -178,10 +185,18 @@ fn quote_structure(blocks: Vec<(Fence, String)>, on_required: bool) -> Structure
     }
     match on {
         Some(text) if text.is_empty() => Err((Code::MissingFence, "the on fence is empty".into())),
-        Some(text) => Ok((Some(Quote { scope, on: text }), Vec::new())),
+        Some(text) => Ok((
+            Some(Quote { scope, on: text }),
+            near.filter(|n| !n.is_empty()),
+            Vec::new(),
+        )),
         None if scope.is_some() => Err((Code::MissingFence, "an in fence needs an on fence after it".into())),
         None if on_required => Err((Code::MissingFence, "an anchor record needs an on fence".into())),
-        None => Ok((None, Vec::new())),
+        None if near.is_some() => Err((
+            Code::UnexpectedFence,
+            "a near fence describes a quote, and there is no on fence".into(),
+        )),
+        None => Ok((None, None, Vec::new())),
     }
 }
 
@@ -229,10 +244,10 @@ fn edit_structure(blocks: Vec<(Fence, String)>) -> Structure {
                     ))
                 }
             },
-            Fence::On => {
+            Fence::On | Fence::Near => {
                 return Err((
                     Code::UnexpectedFence,
-                    "an on fence does not belong in this record".into(),
+                    format!("a {} fence does not belong in this record", kind.name()),
                 ))
             }
         }
@@ -246,10 +261,10 @@ fn edit_structure(blocks: Vec<(Fence, String)>) -> Structure {
     if edits.is_empty() {
         return Err((Code::MissingFence, "the record has no replace and with fences".into()));
     }
-    Ok((None, edits))
+    Ok((None, None, edits))
 }
 
-const KNOWN_ATTRIBUTES: [&str; 4] = ["by", "at", "for", "re"];
+const KNOWN_ATTRIBUTES: [&str; 5] = ["by", "at", "for", "re", "line"];
 
 /// Parses one raw record. Returns `None`, with a diagnostic, for anything a
 /// reader must ignore: malformed records and unknown verbs.
@@ -284,6 +299,7 @@ pub(crate) fn parse_record(raw: &RawRecord, diags: &mut Vec<Diagnostic>) -> Opti
     let mut at = None;
     let mut on_behalf_of = None;
     let mut re = None;
+    let mut line_hint: Option<String> = None;
     let mut seen: Vec<&str> = Vec::new();
     for (key, value) in &header.attrs {
         if seen.contains(key) {
@@ -295,6 +311,7 @@ pub(crate) fn parse_record(raw: &RawRecord, diags: &mut Vec<Diagnostic>) -> Opti
             "at" => at = Some(value.to_string()),
             "for" => on_behalf_of = Some(value.to_string()),
             "re" => re = Some(value.to_string()),
+            "line" => line_hint = Some(value.to_string()),
             _ => {}
         }
     }
@@ -335,14 +352,14 @@ pub(crate) fn parse_record(raw: &RawRecord, diags: &mut Vec<Diagnostic>) -> Opti
         Verb::Anchor => quote_structure(blocks, true),
         Verb::Suggest | Verb::Edit | Verb::Revert => edit_structure(blocks),
         _ => match blocks.first() {
-            None => Ok((None, Vec::new())),
+            None => Ok((None, None, Vec::new())),
             Some((kind, _)) => Err((
                 Code::UnexpectedFence,
                 format!("a {} fence does not belong in a {} record", kind.name(), verb.as_str()),
             )),
         },
     };
-    let (quote, edits) = match structure {
+    let (quote, near, edits) = match structure {
         Ok(parts) => parts,
         Err((code, message)) => {
             diags.push(Diagnostic::new(code, raw.line, id, message));
@@ -361,6 +378,23 @@ pub(crate) fn parse_record(raw: &RawRecord, diags: &mut Vec<Diagnostic>) -> Opti
             ));
         }
     }
+    // A line hint is a positive number. Anything else is ignored.
+    let hinted = line_hint.as_deref().map(|v| v.parse::<usize>().ok().filter(|&n| n > 0));
+    if hinted == Some(None) {
+        diags.push(Diagnostic::new(
+            Code::UnknownAttribute,
+            raw.line,
+            id,
+            format!(
+                "line=\"{}\" is not a line number",
+                line_hint.as_deref().unwrap_or_default()
+            ),
+        ));
+    }
+    let hint = Hint {
+        line: hinted.flatten().filter(|_| quote.is_some()),
+        near,
+    };
     if !is_utc_timestamp(&at) {
         diags.push(Diagnostic::new(
             Code::BadTimestamp,
@@ -380,6 +414,7 @@ pub(crate) fn parse_record(raw: &RawRecord, diags: &mut Vec<Diagnostic>) -> Opti
         re,
         note,
         quote,
+        hint,
         edits,
     })
 }

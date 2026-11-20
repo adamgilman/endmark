@@ -145,7 +145,7 @@ impl Code {
             Code::DanglingReply => "set re= to the id of an item that appears earlier in the file",
             Code::BodyAfterLog => "move the text above the first record",
             Code::UnknownVerb => "readers ignore this record",
-            Code::UnknownAttribute => "readers ignore this attribute",
+            Code::UnknownAttribute => "readers ignore this attribute; line= takes a line number",
             Code::BadTimestamp => "use RFC 3339 in UTC, such as 2026-11-13T09:30:00Z",
         }
     }

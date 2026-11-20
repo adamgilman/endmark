@@ -154,9 +154,9 @@ async function wide(port: number): Promise<void> {
     await page.evaluate(`t.click(t.card("s-4q8d"), "Accept")`);
     let source = await page.evaluate<string>(`t.source()`);
     check("accept changed the body lines", source.includes("It listens on port 8443 by default.") && source.includes("\n## Installation\n") && source.includes("B[Relay] --> C[Consumer]\n```"));
-    check("accept appended an accept record and an anchor record", /<!--endmark accept s-4q8d by=you at=\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ -->\n\n<!--endmark anchor c-7f3k by=you at=\S+\n```on\nport 8443\n```\n-->\n$/.test(source), source.slice(-200));
+    check("accept appended an accept record and an anchor record", /<!--endmark accept s-4q8d by=you at=\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ -->\n\n<!--endmark anchor c-7f3k by=you at=\S+ line=3\n```on\nport 8443\n```\n```near\n[^\n]+\n```\n-->\n$/.test(source), source.slice(-200));
     const changed = await page.evaluate<string[]>(`t.changed()`);
-    check("the changed and added lines are highlighted in the source", changed.includes("## Installation") && changed.some((line) => line.startsWith("<!--endmark accept s-4q8d")) && changed.length === 3 + 8, JSON.stringify(changed));
+    check("the changed and added lines are highlighted in the source", changed.includes("## Installation") && changed.some((line) => line.startsWith("<!--endmark accept s-4q8d")) && changed.length === 3 + 11, JSON.stringify(changed));
     check("the source scrolled to the first changed line", await page.evaluate(`(() => {
       const pane = document.querySelector("#source"); const first = pane.querySelector("li.changed");
       const top = first.getBoundingClientRect().top; const box = pane.getBoundingClientRect();
@@ -207,13 +207,13 @@ async function wide(port: number): Promise<void> {
     console.log("\n# Select text to comment and to suggest");
     let picked = await selectAnd(page, "webhook events", "Comment", "Which events?");
     source = await page.evaluate<string>(`t.source()`);
-    check("commenting on a selection appends a comment with the selection as its quote", picked === "webhook events" && /<!--endmark comment c-\S{4} by=you at=\S+\n```on\nwebhook events\n```\nWhich events\?\n-->\n$/.test(source), source.slice(-200));
+    check("commenting on a selection appends a comment with the selection as its quote", picked === "webhook events" && /<!--endmark comment c-\S{4} by=you at=\S+ line=3\n```on\nwebhook events\n```\n```near\n[^\n]+\n```\nWhich events\?\n-->\n$/.test(source), source.slice(-200));
     check("the new comment is highlighted and has a card", await page.evaluate(`[...document.querySelectorAll("#doc mark.em-quote")].some((m) => m.textContent === "webhook events") && document.querySelectorAll("#doc .em-thread").length === 3`));
 
     await page.evaluate(`t.select("RELAY_TOKEN")`);
     picked = await selectAnd(page, "relay", "Comment", "Which binary?");
     source = await page.evaluate<string>(`t.source()`);
-    check("a selection that is not unique is written with an in scope", /```in\n1\. Install the `relay` binary\.\n```\n```on\nrelay\n```\nWhich binary\?\n-->\n$/.test(source), source.slice(-200));
+    check("a selection that is not unique is written with an in scope", /```in\n1\. Install the `relay` binary\.\n```\n```on\nrelay\n```\n```near\n[^`]+`relay`[^\n]*\n[^\n]+\n[^\n]+\n```\nWhich binary\?\n-->\n$/.test(source), source.slice(-200));
 
     const beforeSuggest = source;
     picked = await selectAnd(page, "5 second", "Suggest", "Give slow consumers time.", "10 second");

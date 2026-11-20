@@ -24,8 +24,14 @@ The first version. The format is defined in [RFC 0001](rfcs/0001-endmark.md) and
 
 **Conformance suite**
 
-- 56 reader fixtures and 40 writer fixtures that an implementation in any language can be checked against.
+- 60 reader fixtures and 40 writer fixtures that an implementation in any language can be checked against.
 - `spec/endmark.md`: the format alone, generated from the RFC.
+
+**Guideposts and repair**
+
+- Comments and anchors store where their quote was: a `line` attribute and a `near` fence with the surrounding lines. Readers never match on them.
+- `endmark lint --suggest` says where a comment that lost its place probably belongs. `endmark repair` writes those proposals as `anchor` records.
+- The search is tested against eighteen realistic edit scenarios, and measured by replaying the histories of 15 public documents (`eval/`): about 99.5% of the proposals `repair` writes by default were right.
 
 **Renderer and demo page**
 

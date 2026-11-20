@@ -1,3 +1,5 @@
 # Fixtures are compared byte for byte, and crlf.md has CRLF line endings on purpose.
 conformance/*.md -text
 conformance/write/*/*.md -text
+# Embedded in tests with include_str!, and matched against LF text.
+crates/endmark-core/tests/repair/*.md -text

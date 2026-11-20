@@ -1,0 +1,11 @@
+{
+  "about": "A near fence describes a quote. Without an on fence the record is malformed.",
+  "items": [],
+  "diagnostics": [
+    {
+      "line": 3,
+      "code": "unexpected-fence",
+      "id": "c-1"
+    }
+  ]
+}

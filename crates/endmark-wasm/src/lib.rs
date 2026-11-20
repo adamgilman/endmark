@@ -23,6 +23,9 @@ use serde_json::{json, Value};
 /// - `status`: returns `document`, as `endmark status --format json` prints it.
 /// - `preview`, with `id`: returns `body`, the document as it would read with
 ///   that suggestion accepted. Nothing is written.
+/// - `repairs`: for each comment that lost its place, the quote that would
+///   probably re-attach it, as `{id, line, score, reason, on, in}`. Nothing
+///   is written; pass `on` and `in` to `anchor` to accept one.
 /// - `comment`, `reply`, `suggest`, `edit`, `accept`, `reject`, `retract`,
 ///   `resolve`, `reopen`, `anchor`, `revert`: a write. Takes `by` and `at`,
 ///   and where they apply `for`, `note`, `id` (the item acted on), `new_id`
@@ -56,6 +59,20 @@ fn answer(request: &Value) -> Result<Value, Failure> {
 
     if op == "status" {
         return Ok(json!({"ok": true, "document": json::document("", &parse(source))}));
+    }
+
+    if op == "repairs" {
+        let found = endmark_core::repair::candidates(source);
+        let list: Vec<Value> = found
+            .iter()
+            .map(|c| {
+                json!({
+                    "id": c.id, "line": c.line, "score": c.score, "reason": c.reason.as_str(),
+                    "on": c.quote.on, "in": c.quote.scope,
+                })
+            })
+            .collect();
+        return Ok(json!({"ok": true, "repairs": list}));
     }
 
     let stamp = Stamp {

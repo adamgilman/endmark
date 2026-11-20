@@ -88,6 +88,11 @@ fn writer_fixtures_pass() {
             }
             None => {
                 let expected = std::fs::read(dir.join("expected.md")).unwrap();
+                // UPDATE_FIXTURES=1 rewrites expected.md from what the tool writes.
+                if std::env::var_os("UPDATE_FIXTURES").is_some() && out.status.code() == Some(0) {
+                    std::fs::write(dir.join("expected.md"), &out.stdout).unwrap();
+                    continue;
+                }
                 if out.status.code() != Some(0) {
                     failures.push(format!("{name}: exit {:?}: {stderr}", out.status.code()));
                 } else if out.stdout != expected {

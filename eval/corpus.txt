@@ -1,0 +1,8 @@
+# The documents the replay is run over: REPOSITORY, the commit whose
+# history is replayed, then files in it.
+# Chosen for long histories of real revision by several people:
+# a book under editing, design proposals under review, and reference docs.
+https://github.com/rust-lang/book 5c23042f85595490ad9f7412c4c6f57fe0b330d5 src/ch02-00-guessing-game-tutorial.md src/ch09-02-recoverable-errors-with-result.md src/ch10-03-lifetime-syntax.md src/ch03-02-data-types.md
+https://github.com/kubernetes/enhancements cac930cb9d7c70192016865425f943c339414011 keps/sig-node/1287-in-place-update-pod-resources/README.md keps/sig-api-machinery/3488-cel-admission-control/README.md keps/sig-node/4603-tune-crashloopbackoff/README.md keps/sig-node/2400-node-swap/README.md
+https://github.com/golang/proposal 83ee2aaf9fdcc1a1cf4bb4d20216fc979635cf04 design/go2draft-type-parameters.md design/43651-type-parameters.md design/draft-workspace.md
+https://github.com/tc39/proposal-temporal b038883fe9c6aa871ccab3238c90daf9eb5e9b17 README.md docs/zoneddatetime.md docs/cookbook.md docs/duration.md

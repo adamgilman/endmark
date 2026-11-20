@@ -63,7 +63,7 @@
     {
       "id": "r-6w2p",
       "kind": "revert",
-      "line": 96,
+      "line": 99,
       "by": "maria",
       "re": "s-4q8d",
       "state": "applied",
@@ -73,7 +73,7 @@
     {
       "id": "r-1k8v",
       "kind": "revert",
-      "line": 127,
+      "line": 133,
       "by": "adam",
       "re": "r-6w2p",
       "state": "applied",

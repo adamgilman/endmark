@@ -16,8 +16,11 @@ Enough?
 ```
 -->
 
-<!--endmark anchor c-1 by=ana at=2026-11-20T10:00:00Z
+<!--endmark anchor c-1 by=ana at=2026-11-20T10:00:00Z line=1
 ```on
 5 times
+```
+```near
+Retry 5 times, on 3 nodes.
 ```
 -->

@@ -1,0 +1,19 @@
+{
+  "about": "A line hint that is not a positive number is ignored with a warning. The comment is unaffected.",
+  "items": [
+    {
+      "id": "c-1",
+      "kind": "comment",
+      "state": "live",
+      "thread": "open",
+      "anchor": "attached"
+    }
+  ],
+  "diagnostics": [
+    {
+      "line": 3,
+      "code": "unknown-attribute",
+      "id": "c-1"
+    }
+  ]
+}
