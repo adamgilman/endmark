@@ -16,6 +16,7 @@ fn endmark_in(dir: Option<&Path>, env: &[(String, String)], args: &[&str]) -> Ou
     command
         .args(args)
         .env_remove("ENDMARK_BY")
+        .env_remove("ENDMARK_FOR")
         .envs(env.iter().map(|(k, v)| (k.as_str(), v.as_str())))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -235,7 +236,10 @@ fn every_refusal() -> Vec<WriteError> {
         WriteError::NotFound { id: s() },
         WriteError::NotAChange { id: s(), what: s() },
         WriteError::NotInEffect { id: s(), tip: s() },
-        WriteError::UnscopedDeletion { target: s() },
+        WriteError::UnscopedDeletion {
+            target: s(),
+            scoped: false,
+        },
         WriteError::TextChanged {
             target: s(),
             text: s(),
@@ -250,7 +254,11 @@ fn every_refusal() -> Vec<WriteError> {
         WriteError::Overlap,
         WriteError::Stale { id: s(), why: "" },
         WriteError::Empty { what: "" },
-        WriteError::NoChange { id: s(), what: "" },
+        WriteError::NoChange {
+            id: s(),
+            given: None,
+            what: "",
+        },
         WriteError::BreaksLog,
         WriteError::MixedLineEndings,
     ];

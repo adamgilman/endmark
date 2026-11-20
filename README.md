@@ -122,9 +122,9 @@ notes.md: refused[not-in-effect] r-6w2p: "r-6w2p" is already undone; the latest 
   hint: to bring it back, revert "r-1k8v"
 ```
 
-- `--by HANDLE` says who is writing. Set `ENDMARK_BY` to avoid repeating it. Agents add `--for PERSON`.
+- `--by HANDLE` says who is writing. Set `ENDMARK_BY` to avoid repeating it. Agents add `--for PERSON`, or set `ENDMARK_FOR`.
 - `--dry-run` prints the resulting file and writes nothing. So does `-` as the file, which reads standard input.
-- The command refuses, with exit status 1 and the file untouched, when the text has changed since the change was applied, or when the change deleted text without recording where. It never guesses.
+- The command refuses, with exit status 1 and the file untouched, when the text has changed since the change was applied, or when the change deleted text without recording where. It never guesses. A deletion records where when it has an `--in` with text wider than what it deletes; `suggest` and `edit` warn when they write one that does not.
 
 ## The linter
 
@@ -152,12 +152,13 @@ endmark lint --suggest notes.md
 ```
 
 ```text
-notes.md:21: warning[detached] c-7f3k: quote "port 8080" is not in the body
+notes.md:6: warning[detached] c-7f3k: quote "port 8080" is not in the body
   hint: append an anchor record with a quote that is in the body, or resolve the thread
-  repair: line 5, 87% sure: the lines the quote was in; the quoted words themselves are gone. To accept it: endmark repair notes.md c-7f3k
+  repair: line 3, 94% sure: the lines the quote was in; the quoted words themselves are gone. To accept it: endmark repair notes.md c-7f3k
+checked 1 file: 0 errors, 1 warning
 ```
 
-`endmark repair notes.md` accepts every suggestion it is at least 80% sure of, by appending an `anchor` record for each. `--min-score` changes the 80, `--dry-run` shows the result without writing, and naming ids limits it to those comments.
+`endmark repair notes.md` accepts every suggestion it is at least 80% sure of, by appending an `anchor` record for each. `--min-score` changes the 80, `--dry-run` shows the result without writing, and naming ids limits it to those comments. A comment it is not sure enough about is left alone and named, which is not a failure: the exit status is 0.
 
 How good are the suggestions? Replayed against the real revision histories of 15 public documents, about 99.5% of the ones `repair` writes by default were right, and when the search fails it mostly says nothing rather than something wrong. The known weak spot is a deleted paragraph that has a near-identical twin. [eval/](eval/README.md) has the method and the numbers.
 
@@ -167,7 +168,7 @@ Three more commands read a file:
 
 - `endmark status FILE` lists every comment, suggestion, edit and revert with its state.
 - `endmark log FILE` prints the history, newest first.
-- `endmark body FILE` prints the document without its records.
+- `endmark body FILE` prints the document without its records, and without the blank lines the records leave at its end.
 
 ## Writing records
 
@@ -191,7 +192,7 @@ notes.md: accepted s-4q8d; re-pointed c-7f3k
 
 - **Quoted text** (`--on`, `--replace`) is Markdown source and must be in the document exactly once. If it is not, add `--in` with the surrounding text.
 - **Several edits in one suggestion**: repeat `--replace` and `--with`. They are accepted or rejected together.
-- **Agents** add `--for PERSON` to name who they act for.
+- **Agents** add `--for PERSON` to name who they act for, or set `ENDMARK_FOR`. An author that starts with `agent:` and names no one gets a warning on standard error.
 - **Trying it out**: `--dry-run` prints the resulting file and writes nothing.
 - `retract` withdraws your own comment or suggestion, `reopen` opens a thread again, `edit` makes a change directly and logs it, and `anchor` points a comment at new text after its quote went missing (`repair` does that for you where it can).
 

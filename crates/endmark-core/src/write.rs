@@ -13,8 +13,8 @@ use crate::escape::escape;
 use crate::repair::context_of;
 use crate::scan::{self, Scan, START};
 use crate::{
-    parse, Anchor, Applicability, Detail, Document, Edit, Hint, Item, Quote, StaleReason, SuggestionState, ThreadState,
-    Verb,
+    parse, Anchor, Applicability, Code, Detail, Document, Edit, Hint, Item, Quote, StaleReason, SuggestionState,
+    ThreadState, Verb,
 };
 
 /// Who is writing, when, and what they have to say.
@@ -46,6 +46,10 @@ pub struct Written {
     pub detached: Vec<String>,
     /// Open suggestions this write made stale.
     pub stale: Vec<String>,
+    /// For `suggest` and `edit`: how many of the edits written are deletions
+    /// that `revert` could not put back, because they have no `in` scope or
+    /// delete all of it (RFC 9.3).
+    pub not_revertible: usize,
 }
 
 /// Why a write was refused. Nothing was changed.
@@ -57,8 +61,9 @@ pub enum WriteError {
     NotAChange { id: String, what: String },
     /// The change is already undone. Reverting `tip` would bring it back.
     NotInEffect { id: String, tip: String },
-    /// The target deleted text without an `in` scope, so the place is not recorded.
-    UnscopedDeletion { target: String },
+    /// The target deleted text without an `in` scope, so the place is not
+    /// recorded. `scoped` says it had a scope, and deleted all of it.
+    UnscopedDeletion { target: String, scoped: bool },
     /// The text the target wrote can no longer be found exactly once.
     TextChanged {
         target: String,
@@ -83,8 +88,13 @@ pub enum WriteError {
     Stale { id: String, why: &'static str },
     /// The record would say nothing: no quote, no note, no edits.
     Empty { what: &'static str },
-    /// The write would change nothing.
-    NoChange { id: String, what: &'static str },
+    /// The write would change nothing. `id` is the thread root, and `given`
+    /// the reply that was named, when it was not the root itself.
+    NoChange {
+        id: String,
+        given: Option<String>,
+        what: &'static str,
+    },
     /// The new text would damage a record in the file, or read as a record itself.
     BreaksLog,
     /// The file mixes CRLF and LF line endings.
@@ -125,7 +135,7 @@ impl WriteError {
             WriteError::NotAChange { .. } => "only an accepted suggestion, an edit or a revert can be reverted".into(),
             WriteError::NotInEffect { tip, .. } => format!("to bring it back, revert \"{tip}\""),
             WriteError::UnscopedDeletion { .. } => {
-                "put the text back with a suggestion; a deletion needs an in fence to be revertible".into()
+                "put the text back with a suggestion; to be revertible, a deletion needs an in fence wider than the text it deletes".into()
             }
             WriteError::TextChanged { .. } => {
                 "the document changed after this was applied; make the change by hand or with a suggestion".into()
@@ -148,7 +158,11 @@ impl WriteError {
                 "end the new text with a newline, and keep lines that start \"<!--endmark \" out of it".into()
             }
             WriteError::MixedLineEndings => "convert the file to one kind of line ending first".into(),
-            WriteError::Ignored { .. } => "a reader would ignore this record, so it was not written".into(),
+            // The linter's own hint for the code says what to do about it.
+            WriteError::Ignored { code, .. } => match Code::ALL.iter().find(|c| c.as_str() == *code) {
+                Some(c) => format!("{}. Nothing was written: a reader would ignore this record", c.hint()),
+                None => "a reader would ignore this record, so it was not written".into(),
+            },
         }
     }
 }
@@ -168,9 +182,13 @@ impl fmt::Display for WriteError {
                     )
                 }
             }
-            WriteError::UnscopedDeletion { target } => write!(
+            WriteError::UnscopedDeletion { target, scoped: false } => write!(
                 f,
                 "\"{target}\" deleted text without recording where, so it cannot be put back automatically"
+            ),
+            WriteError::UnscopedDeletion { target, scoped: true } => write!(
+                f,
+                "\"{target}\" deleted all of the text it gave as its scope, which does not record where the text was, so it cannot be put back automatically"
             ),
             WriteError::TextChanged { target, text, why } => {
                 write!(f, "the text written by \"{target}\", {}, {why}", shorten(text))
@@ -186,7 +204,12 @@ impl fmt::Display for WriteError {
             WriteError::Overlap => write!(f, "two of the edits touch the same text"),
             WriteError::Stale { id, why } => write!(f, "suggestion \"{id}\" cannot be applied: {why}"),
             WriteError::Empty { what } => write!(f, "{what} would be empty"),
-            WriteError::NoChange { id, what } => write!(f, "\"{id}\" is already {what}"),
+            WriteError::NoChange { id, given: None, what } => write!(f, "\"{id}\" is already {what}"),
+            WriteError::NoChange {
+                id,
+                given: Some(given),
+                what,
+            } => write!(f, "\"{given}\" is in the thread of \"{id}\", which is already {what}"),
             WriteError::BreaksLog => write!(f, "the new text would damage a record in the file, or be read as one"),
             WriteError::MixedLineEndings => write!(f, "the file mixes CRLF and LF line endings"),
             WriteError::Ignored { message, .. } => write!(f, "{message}"),
@@ -420,6 +443,7 @@ impl File {
             reanchored,
             detached,
             stale,
+            not_revertible: 0,
         })
     }
 }
@@ -677,14 +701,16 @@ pub fn suggest(source: &str, new_id: &str, stamp: &Stamp, edits: &[Edit]) -> Res
     }
     file.locate(edits, missing)?;
     let record = change_record("suggest", new_id, None, stamp, edits);
-    file.finish(file.text.clone(), &record, stamp, None, new_id, |after| {
+    let mut written = file.finish(file.text.clone(), &record, stamp, None, new_id, |after| {
         let item = after.item(new_id).ok_or(NOT_FOUND)?;
         match &item.detail {
             Detail::Suggestion(s) if s.edits == edits => {}
             _ => return Err("its edits would be read differently"),
         }
         same_note(&item.note, stamp.note)
-    })
+    })?;
+    written.not_revertible = not_revertible(edits);
+    Ok(written)
 }
 
 /// Changes the body and logs the change (RFC 7, `edit`).
@@ -700,14 +726,16 @@ pub fn edit(source: &str, new_id: &str, stamp: &Stamp, edits: &[Edit]) -> Result
     let ranges = file.locate(edits, missing)?;
     let (out, landed) = file.apply(edits, &ranges)?;
     let record = change_record("edit", new_id, None, stamp, edits);
-    file.finish(out, &record, stamp, Some((edits, &ranges, &landed)), new_id, |after| {
+    let mut written = file.finish(out, &record, stamp, Some((edits, &ranges, &landed)), new_id, |after| {
         let item = after.item(new_id).ok_or(NOT_FOUND)?;
         match &item.detail {
             Detail::Edit(e) if e.edits == edits => {}
             _ => return Err("its edits would be read differently"),
         }
         same_note(&item.note, stamp.note)
-    })
+    })?;
+    written.not_revertible = not_revertible(edits);
+    Ok(written)
 }
 
 /// Accepts a suggestion: applies its edits and appends the record (RFC 9.2).
@@ -769,6 +797,7 @@ pub fn act(source: &str, verb: Verb, id: &str, stamp: &Stamp) -> Result<Written,
     let stamp = &Stamp { note: &note, ..*stamp };
     let file = open(source, stamp, None)?;
     let item = file.item(id)?;
+    let given = id;
     let mut id = id;
     if let (Verb::Resolve | Verb::Reopen, Detail::Comment(c)) = (verb, &item.detail) {
         id = &c.root;
@@ -784,6 +813,7 @@ pub fn act(source: &str, verb: Verb, id: &str, stamp: &Stamp) -> Result<Written,
         if same {
             return Err(WriteError::NoChange {
                 id: id.to_string(),
+                given: (given != id).then(|| given.to_string()),
                 what: if verb == Verb::Resolve { "resolved" } else { "open" },
             });
         }
@@ -871,6 +901,11 @@ fn invert(edit: &Edit) -> Option<Edit> {
     })
 }
 
+/// How many of the edits are deletions that a revert could not put back.
+fn not_revertible(edits: &[Edit]) -> usize {
+    edits.iter().filter(|e| invert(e).is_none()).count()
+}
+
 /// The whole lines around `start..end`, widened upwards until they hold
 /// something besides the range itself. Used as the `in` scope of a deletion,
 /// so that the deletion can be reverted in turn.
@@ -928,6 +963,7 @@ pub fn revert(source: &str, id: &str, new_id: &str, stamp: &Stamp) -> Result<Wri
     for edit in edits {
         inverse.push(invert(edit).ok_or_else(|| WriteError::UnscopedDeletion {
             target: target.to_string(),
+            scoped: edit.scope.is_some(),
         })?);
     }
     let changed = |text: &str, why| WriteError::TextChanged {

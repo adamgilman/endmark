@@ -13,7 +13,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use endmark_core::json;
 use endmark_core::repair::Candidate;
 use endmark_core::write::{self, Stamp};
-use endmark_core::{Applicability, Code, Detail, Document, Edit, Item, Landing, Quote, Verb};
+use endmark_core::{Anchor, Applicability, Code, Detail, Document, Edit, Item, Landing, Quote, Verb};
 use serde_json::{json, Value};
 
 const USAGE: &str = "\
@@ -26,7 +26,7 @@ Usage:
   endmark body FILE
 
   endmark comment [--on TEXT [--in TEXT]] [--note TEXT] FILE
-  endmark reply   [--on TEXT [--in TEXT]] --note TEXT FILE ID
+  endmark reply   [--on TEXT [--in TEXT]] [--note TEXT] FILE ID
   endmark suggest ([--in TEXT] --replace TEXT --with TEXT)... [--note TEXT] FILE
   endmark edit    ([--in TEXT] --replace TEXT --with TEXT)... [--note TEXT] FILE
   endmark accept | reject | retract | resolve | reopen [--note TEXT] FILE ID
@@ -35,7 +35,7 @@ Usage:
   endmark repair  [--min-score N] FILE [ID...]
 
   endmark skill
-  endmark --help | --version
+  endmark help | --help | --version
 
 AI agents: run endmark skill first. It prints instructions for using
 this tool, as a SKILL.md document.
@@ -48,12 +48,15 @@ Commands that read:
            that need attention. Never writes.
   status   List every item with its state.
   log      Print the history, newest first.
-  body     Print the document without its records.
+  body     Print the document without its records, and without the
+           blank lines the records leave at its end.
 
 Commands that write. Each appends one record. Only accept, edit and
 revert change the document itself.
   comment  Comment on quoted text (--on), or on the whole document.
-  reply    Reply to a comment, or remark on a suggestion.
+           Needs a note, quoted text, or both.
+  reply    Reply to a comment, or remark on a suggestion. Needs a note,
+           quoted text, or both.
   suggest  Propose one or more replacements. The document is not changed.
   edit     Make one or more replacements now, and log them.
   accept   Apply every edit of a suggestion.
@@ -78,7 +81,8 @@ For AI agents:
 Quoted text (--on, --in, --replace) is Markdown source, exactly as in
 the file, and must match exactly once. --in gives surrounding text to
 search within. An empty --with deletes; an empty --replace appends to
-the end of the document.
+the end of the document. A deletion can be reverted later only if it
+has an --in with text wider than what it deletes.
 
 Options:
   --strict         lint: exit 1 on warnings as well as errors
@@ -87,16 +91,19 @@ Options:
   --min-score N    repair: how sure to be, 0 to 100. Default: 80
   --format FORMAT  text (default) or json
   --by HANDLE      who is writing. Default: $ENDMARK_BY
-  --for PERSON     the person an agent is acting for
+  --for PERSON     the person an agent is acting for. Default:
+                   $ENDMARK_FOR. An agent (--by agent:NAME) that names
+                   no one gets a warning on standard error.
   --note TEXT, -m  the note, in Markdown
   --dry-run        print the resulting file, do not write it
   --id ID          id for a new item. Default: random
   --at TIME        RFC 3339 UTC time. Default: now
 
 Exit status:
-  0  no errors; for a write: the file was written
-  1  at least one error, or a warning under --strict; for a write:
-     refused, and nothing was written
+  0  no errors; for a write: the file was written; for repair: also
+     when there was nothing to repair, or a comment was left alone
+  1  at least one error, or a warning under --strict; for a write or
+     repair: refused, and nothing was written
   2  a file could not be read or written, or the arguments were wrong
 ";
 
@@ -126,7 +133,9 @@ struct Options {
     files: Vec<String>,
 }
 
-fn parse_options(args: &[String], allow_strict: bool) -> Result<Options, String> {
+/// `lint` says whether `--strict` and `--suggest` are taken, and `format`
+/// whether `--format` is.
+fn parse_options(args: &[String], allow_strict: bool, allow_format: bool) -> Result<Options, String> {
     let mut options = Options {
         strict: false,
         suggest: false,
@@ -149,10 +158,10 @@ fn parse_options(args: &[String], allow_strict: bool) -> Result<Options, String>
             options.strict = true;
         } else if arg == "--suggest" && allow_strict {
             options.suggest = true;
-        } else if arg == "--format" {
+        } else if arg == "--format" && allow_format {
             let value = it.next().ok_or("--format needs a value: text or json")?;
             options.format = format_value(value)?;
-        } else if let Some(value) = arg.strip_prefix("--format=") {
+        } else if let Some(value) = arg.strip_prefix("--format=").filter(|_| allow_format) {
             options.format = format_value(value)?;
         } else {
             return Err(format!("unknown option \"{arg}\"; see endmark --help"));
@@ -176,10 +185,10 @@ fn run(args: &[String]) -> Result<ExitCode, String> {
             println!("endmark {}", env!("CARGO_PKG_VERSION"));
             Ok(ExitCode::SUCCESS)
         }
-        "lint" => lint(parse_options(rest, true)?),
-        "status" => status(parse_options(rest, false)?),
-        "body" => body(parse_options(rest, false)?),
-        "log" => log(parse_options(rest, false)?),
+        "lint" => lint(parse_options(rest, true, true)?),
+        "status" => status(parse_options(rest, false, true)?),
+        "body" => body(parse_options(rest, false, false)?),
+        "log" => log(parse_options(rest, false, true)?),
         "repair" => repair(rest),
         "skill" => skill(rest),
         "comment" | "reply" | "suggest" | "edit" | "accept" | "reject" | "retract" | "resolve" | "reopen"
@@ -427,7 +436,7 @@ struct WriteArgs {
 fn parse_write_args(args: &[String]) -> Result<WriteArgs, String> {
     let mut parsed = WriteArgs {
         by: std::env::var("ENDMARK_BY").ok(),
-        person: None,
+        person: std::env::var("ENDMARK_FOR").ok().filter(|p| !p.is_empty()),
         note: None,
         id: None,
         at: None,
@@ -465,6 +474,23 @@ fn parse_write_args(args: &[String]) -> Result<WriteArgs, String> {
         }
     }
     Ok(parsed)
+}
+
+/// The warning for an agent that names no person to act for. It goes to
+/// standard error, which never carries the file.
+fn warn_no_person(name: &str, by: &str, person: Option<&str>) {
+    if by.starts_with("agent:") && person.is_none() {
+        let _ = writeln!(
+            io::stderr(),
+            "{name}: warning: {by} is writing with no person named: pass --for PERSON or set ENDMARK_FOR"
+        );
+    }
+}
+
+/// A refused write, in the form every command prints it.
+fn refusal(name: &str, id: &str, e: &write::WriteError) -> String {
+    let subject = if id.is_empty() { String::new() } else { format!(" {id}") };
+    format!("{name}: refused[{}]{subject}: {e}\n  hint: {}", e.code(), e.hint())
 }
 
 /// `[--in TEXT] --on TEXT`, or nothing.
@@ -578,7 +604,12 @@ fn write_command(command: &str, args: &[String]) -> Result<ExitCode, String> {
         "accept" => (write::accept(&source, target, &stamp), "accepted".to_string()),
         "anchor" => {
             let quote = quote_from(&parsed.texts, command)?.ok_or("anchor needs --on TEXT")?;
-            (write::anchor(&source, target, &stamp, &quote), "re-pointed".to_string())
+            // Say so when the comment had a place already and was moved from it.
+            let did = match endmark_core::parse(&source).item(target).map(|i| &i.detail) {
+                Some(Detail::Comment(c)) if matches!(c.anchor, Anchor::Attached { .. }) => "moved attached comment",
+                _ => "re-pointed",
+            };
+            (write::anchor(&source, target, &stamp, &quote), did.to_string())
         }
         "revert" => (write::revert(&source, target, &new_id('r'), &stamp), String::new()),
         _ => {
@@ -595,17 +626,7 @@ fn write_command(command: &str, args: &[String]) -> Result<ExitCode, String> {
     let done = match result {
         Ok(done) => done,
         Err(e) => {
-            let subject = if target.is_empty() {
-                String::new()
-            } else {
-                format!(" {target}")
-            };
-            eprintln!(
-                "{}: refused[{}]{subject}: {e}\n  hint: {}",
-                display_name(path),
-                e.code(),
-                e.hint()
-            );
+            eprintln!("{}", refusal(display_name(path), target, &e));
             return Ok(ExitCode::from(1));
         }
     };
@@ -654,6 +675,19 @@ fn write_command(command: &str, args: &[String]) -> Result<ExitCode, String> {
     } else {
         let _ = writeln!(io::stdout(), "{summary}");
     }
+    if done.not_revertible > 0 {
+        let _ = writeln!(
+            io::stderr(),
+            "{}: warning: {} cannot be reverted later: give --in with text wider than what is deleted",
+            display_name(path),
+            if done.not_revertible == 1 {
+                "a deletion".to_string()
+            } else {
+                format!("{} deletions", done.not_revertible)
+            }
+        );
+    }
+    warn_no_person(display_name(path), &by, parsed.person.as_deref());
     Ok(ExitCode::SUCCESS)
 }
 
@@ -812,7 +846,12 @@ fn repair(args: &[String]) -> Result<ExitCode, String> {
                     c.id, c.line, c.score
                 ));
             }
-            Err(e) => lines.push(format!("{name}: refused[{}] {}: {e}", e.code(), c.id)),
+            // Like any refused write: nothing is written, not even the
+            // anchors that went before.
+            Err(e) => {
+                eprintln!("{}", refusal(name, &c.id, &e));
+                return Ok(ExitCode::from(1));
+            }
         }
     }
     // Say so when a comment that was asked about, or any at all, has no candidate.
@@ -850,16 +889,29 @@ fn repair(args: &[String]) -> Result<ExitCode, String> {
             let _ = writeln!(io::stdout(), "{line}");
         }
     }
+    if repaired > 0 {
+        warn_no_person(name, &by, parsed.person.as_deref());
+    }
     Ok(ExitCode::SUCCESS)
 }
 
 // ---- body ----
 
+/// The body as `endmark body` prints it. The body of RFC 4.2 keeps the blank
+/// line that separated each record from the next, so a file with records
+/// ends in a run of them. They are left out here, down to one line ending.
+/// A body that has no blank line at its end is printed as it is.
+fn printed_body(body: &str) -> &str {
+    let text = body.trim_end_matches('\n');
+    let ending = usize::from(!text.is_empty() && text.len() < body.len());
+    &body[..text.len() + ending]
+}
+
 fn body(options: Options) -> Result<ExitCode, String> {
     let path = one_file(&options, "body")?;
     let doc = endmark_core::parse(&read(&path)?);
     io::stdout()
-        .write_all(doc.body.as_bytes())
+        .write_all(printed_body(&doc.body).as_bytes())
         .map_err(|e| format!("standard output: {e}"))?;
     Ok(ExitCode::SUCCESS)
 }
@@ -895,7 +947,10 @@ fn summary(item: &Item) -> (String, String, String) {
                 }
             };
             let quote = c.quote.as_ref().map(|q| q.on.clone()).unwrap_or_default();
-            (state, c.anchor.as_str().to_string(), quote)
+            // Where a comment is matters while it is live. A retracted one
+            // shows nothing there, like a closed suggestion.
+            let derived = if c.retracted { "" } else { c.anchor.as_str() };
+            (state, derived.to_string(), quote)
         }
         Detail::Suggestion(s) => {
             let derived = match (s.applicability, s.landing) {
