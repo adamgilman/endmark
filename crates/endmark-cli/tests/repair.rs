@@ -12,7 +12,9 @@ fn endmark(args: &[&str], stdin: &str) -> Output {
         .stderr(Stdio::piped())
         .spawn()
         .expect("endmark runs");
-    child.stdin.take().unwrap().write_all(stdin.as_bytes()).unwrap();
+    // A command that fails on its arguments exits without reading, which
+    // closes the pipe. That is not the test's failure.
+    let _ = child.stdin.take().unwrap().write_all(stdin.as_bytes());
     child.wait_with_output().unwrap()
 }
 
