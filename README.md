@@ -2,7 +2,17 @@
 
 Endmark adds comments, grouped suggestions and a decision history to a Markdown file without changing how the file renders. The Markdown body stays untouched, and all review state lives in an append-only log of HTML-comment records at the end of the file.
 
-**Status: early.** The reader, the linter and the commands that write records work. The renderer and the demo page do not exist yet. The format is defined in [RFC 0001](rfcs/0001-endmark.md), which is open for comment and may still change.
+**Status: alpha.** The format, the linter and the command-line tool work and are tested. A review renderer and a demo page are planned and not built. The format is defined in [RFC 0001](rfcs/0001-endmark.md) and may still change before 0.1.0.
+
+## Install
+
+You need a Rust toolchain, 1.80 or later.
+
+```sh
+cargo install --git https://github.com/adamgilman/endmark endmark
+```
+
+Or build from a checkout with `cargo build --release`; the binary is `target/release/endmark`. It is one static binary with no configuration and no network access.
 
 ## What a file looks like
 
@@ -121,8 +131,6 @@ notes.md: refused[not-in-effect] r-6w2p: "r-6w2p" is already undone; the latest 
 `endmark lint` checks that every record in a file will be read, and that nothing in it will show up in a rendered page by mistake. It is meant for agents to run after every write. It never changes a file.
 
 ```sh
-cargo build --release          # the binary is target/release/endmark
-
 endmark lint notes.md          # exit 0: no errors; 1: errors; 2: could not read
 endmark lint --strict notes.md # warnings fail too
 endmark lint --format json notes.md
@@ -189,6 +197,10 @@ After `accept`, `edit` or `revert`, the command also tells you which open commen
 
 - a reference review renderer
 - a demo page that shows a document beside its raw source and lets you watch the source change as you comment, suggest, accept and revert
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Changes are listed in [CHANGELOG.md](CHANGELOG.md), and [SECURITY.md](SECURITY.md) says what to keep in mind when agents read files with hidden records.
 
 ## Licence
 

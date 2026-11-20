@@ -404,7 +404,7 @@ An aware renderer draws the body as ordinary Markdown, then layers records on to
 
 ### 12.1 Starting point
 
-Milestones M1 and M2 are implemented: `endmark-core` with the read path and one write operation per verb, the `endmark` command with every command in the table in 12.3, and the reader and writer fixtures (12.6). The renderer and the demo page are still to be built, and so are the two CI items in the M1 exit test, the release binaries on every platform and the benchmark budget.
+Milestones M1 and M2 are implemented: `endmark-core` with the read path and one write operation per verb, the `endmark` command with every command in the table in 12.3, and the reader and writer fixtures (12.6). The renderer and the demo page are still to be built, and so is the benchmark budget in CI from the M1 exit test. CI tests and builds on Linux, macOS and Windows, and pushing a version tag builds the release binaries.
 
 The draft spec came with a 145-line Python example parser. It was an illustration, not a foundation, and it is not part of this repository. Before it was set aside it was run for this RFC, on 2026-11-13, with two results worth keeping.
 

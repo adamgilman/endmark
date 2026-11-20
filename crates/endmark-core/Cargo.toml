@@ -6,6 +6,11 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories = ["text-processing", "parser-implementations"]
+readme = "README.md"
+exclude = ["tests"]
 
 [features]
 default = ["commonmark"]
