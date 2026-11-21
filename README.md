@@ -12,7 +12,32 @@ You need a Rust toolchain, 1.80 or later.
 cargo install --git https://github.com/adamgilman/endmark endmark
 ```
 
-Or build from a checkout with `cargo build --release`; the binary is `target/release/endmark`. It is one static binary with no configuration and no network access.
+Or build from a checkout with `cargo build --release`; the binary is `target/release/endmark`. It is one static binary with no configuration. It connects to nothing. Only `endmark view` listens, and only on your own computer.
+
+## Try it
+
+Pick any Markdown file and open it for review in your browser:
+
+```sh
+endmark view --by yourname notes.md
+```
+
+```text
+Serving notes.md at http://127.0.0.1:4173/ (Ctrl-C to stop)
+The page writes to notes.md as yourname.
+```
+
+Open that address. The page shows the document with its comments and suggestions drawn in place, in four views: Final, Review, Preview and History. Select text to comment on it or to suggest a replacement. Reply, resolve, accept, reject, and revert from History. Each action is written to `notes.md` as a record, exactly as the matching command below would write it. For a file with something in it already, try a copy of [conformance/worked-example.md](conformance/worked-example.md).
+
+The page follows the file. Change it in an editor, or let an agent run `endmark comment` in another terminal, and the page shows the change within a second or two. A reply you are half way through typing stays as it is.
+
+The page follows your system's light or dark setting. The Auto, Light and Dark buttons in its header override that, and the browser remembers the choice.
+
+- `--read-only` shows the file and writes nothing. It needs no `--by`.
+- `--port N` uses another port. `--port 0` picks a free one.
+- `--for PERSON` names the person an agent acts for, as on the commands that write.
+
+`endmark view` is an example of a host for the [reference renderer](packages/render/README.md), included so that one binary is a complete tool. It serves one file to one person, on `127.0.0.1` only, with no accounts and no TLS. It draws diagrams but not images, and raw HTML in the document is shown as text. The page is inside the binary, so it needs no network and no other program. For a review site that several people share, host the renderer yourself. [SECURITY.md](SECURITY.md) says what the server protects against and what it does not.
 
 ## What a file looks like
 
@@ -228,6 +253,7 @@ The text ships inside the binary, so it describes the version you have. The test
 | `crates/endmark-wasm/` | `endmark-core` as a WebAssembly module |
 | `packages/render/` | The review renderer, in TypeScript |
 | `demo/` | The demo page |
+| `view/` | The page that `endmark view` serves. Its built form is committed in `crates/endmark-cli/view/` and embedded in the binary. |
 | `compat/` | The check that plain Markdown renderers hide records |
 | `eval/` | A measurement of repair suggestions against real revision histories |
 

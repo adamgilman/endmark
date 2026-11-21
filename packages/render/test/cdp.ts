@@ -8,8 +8,10 @@ import { join } from "node:path";
 export interface Page {
   /** Console errors and uncaught exceptions seen so far. */
   errors: string[];
-  /** URLs of every request the page made. */
+  /** URLs of every request the page made, or tried to make. */
   requests: string[];
+  /** URLs of requests the browser did not send, each with the reason, such as "csp". */
+  blocked: Map<string, string>;
   evaluate<T>(expression: string): Promise<T>;
   send(method: string, params?: Record<string, unknown>): Promise<any>;
   waitFor(expression: string, timeoutMs?: number): Promise<void>;
@@ -66,6 +68,8 @@ export async function openPage(url: string, options: { width?: number; height?: 
   const waiting = new Map<number, { resolve: (value: any) => void; reject: (error: Error) => void }>();
   const errors: string[] = [];
   const requests: string[] = [];
+  const blocked = new Map<string, string>();
+  const urls = new Map<string, string>();
   socket.onmessage = (event) => {
     const message = JSON.parse(String(event.data));
     if (message.id !== undefined) {
@@ -84,6 +88,9 @@ export async function openPage(url: string, options: { width?: number; height?: 
       errors.push(`log: ${p.entry.text} ${p.entry.url ?? ""}`);
     } else if (message.method === "Network.requestWillBeSent") {
       requests.push(p.request.url);
+      urls.set(p.requestId, p.request.url);
+    } else if (message.method === "Network.loadingFailed" && p.blockedReason) {
+      blocked.set(urls.get(p.requestId) ?? "", p.blockedReason);
     }
   };
   const send = (method: string, params: Record<string, unknown> = {}) =>
@@ -118,6 +125,7 @@ export async function openPage(url: string, options: { width?: number; height?: 
   return {
     errors,
     requests,
+    blocked,
     evaluate,
     send,
     async waitFor(expression, timeoutMs = 20_000) {

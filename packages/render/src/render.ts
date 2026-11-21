@@ -21,7 +21,7 @@ import type { Core } from "./core";
 import { lineDiff, wordDiff } from "./diff";
 import { h, sourceOffset, wrapMarks } from "./dom";
 import { randomId } from "./ids";
-import { loadMermaid, type MermaidApi } from "./mermaid";
+import { configureMermaid, loadMermaid, type MermaidApi } from "./mermaid";
 import {
   buildThreads,
   buildUnits,
@@ -51,22 +51,30 @@ export interface SelectionInput {
 }
 
 /**
+ * What an action may return: nothing, its outcome, or a promise of either.
+ * A host that writes somewhere else, such as a server, returns a promise.
+ * A form stays open, with what was typed in it, when the outcome has
+ * `ok: false`. It closes on anything else.
+ */
+export type ActionResult = void | { ok: boolean } | Promise<void | { ok: boolean }>;
+
+/**
  * What the reader asked for. The renderer calls these and changes nothing
  * itself. An action that is absent is not offered.
  */
 export interface Actions {
-  comment?(input: SelectionInput): void;
-  suggest?(input: SelectionInput & { replacement: string }): void;
-  reply?(id: string, note: string): void;
-  accept?(id: string): void;
-  reject?(id: string): void;
-  retract?(id: string): void;
-  resolve?(id: string): void;
-  reopen?(id: string): void;
+  comment?(input: SelectionInput): ActionResult;
+  suggest?(input: SelectionInput & { replacement: string }): ActionResult;
+  reply?(id: string, note: string): ActionResult;
+  accept?(id: string): ActionResult;
+  reject?(id: string): ActionResult;
+  retract?(id: string): ActionResult;
+  resolve?(id: string): ActionResult;
+  reopen?(id: string): ActionResult;
   /** Undo a change that is in effect. The core follows the chain to its tip. */
-  revert?(id: string): void;
+  revert?(id: string): ActionResult;
   /** Bring back a change that is not in effect, by reverting `tip`, the last revert of its chain. */
-  restore?(id: string, tip: string): void;
+  restore?(id: string, tip: string): ActionResult;
 }
 
 export interface RenderOptions {
@@ -85,7 +93,16 @@ export interface RenderOptions {
 
 export interface Renderer {
   readonly view: View;
+  /**
+   * Draws a new source. A form the reader has open, such as a half-typed
+   * reply, is kept with its text, so a host may call this at any time.
+   */
   update(source: string): void;
+  /**
+   * Draws the same source again, keeping open forms. A host calls it after
+   * changing the page's theme, so that diagrams are drawn in the new colours.
+   */
+  redraw(): void;
   setView(view: View): void;
   destroy(): void;
 }
@@ -122,6 +139,13 @@ interface Highlight {
   id: string;
   start: number;
   end: number;
+}
+
+/** What `update` carries over a redraw. */
+interface KeptForms {
+  popover: HTMLElement | null;
+  replies: HTMLFormElement[];
+  focused: { element: HTMLTextAreaElement; start: number; end: number } | null;
 }
 
 let diagramCounter = 0;
@@ -167,8 +191,14 @@ class EndmarkRenderer implements Renderer {
   }
 
   update(source: string): void {
+    const kept = this.openForms();
     this.source = source;
     this.draw();
+    this.restoreForms(kept);
+  }
+
+  redraw(): void {
+    this.update(this.source);
   }
 
   setView(view: View): void {
@@ -182,6 +212,81 @@ class EndmarkRenderer implements Renderer {
     this.generation++;
     document.removeEventListener("selectionchange", this.onSelection);
     this.root.remove();
+  }
+
+  // Forms the reader has open. A redraw for a new source must not lose them.
+
+  private openForms(): KeptForms {
+    const popover = this.popover?.querySelector("form") ? this.popover : null;
+    const replies = [...this.root.querySelectorAll<HTMLFormElement>("form.em-form[data-for]")];
+    const active = document.activeElement;
+    const focused =
+      active instanceof HTMLTextAreaElement && (popover?.contains(active) || replies.some((form) => form.contains(active)))
+        ? { element: active, start: active.selectionStart, end: active.selectionEnd }
+        : null;
+    return { popover, replies, focused };
+  }
+
+  private restoreForms(kept: KeptForms): void {
+    const orphans: HTMLElement[] = [];
+    for (const form of kept.replies) {
+      const id = form.dataset.for!;
+      const card = [...this.root.querySelectorAll<HTMLElement>(`.em-card[data-id="${cssEscape(id)}"]`)].find(
+        (candidate) => !candidate.querySelector(":scope > .em-form"),
+      );
+      if (card) card.append(form);
+      else orphans.push(form);
+    }
+    if (orphans.length > 0) {
+      // The item a reply was being written to is not drawn any more. Keep the text in sight.
+      const section = h(
+        "section",
+        { class: "em-drafts", "aria-label": "Unsent replies" },
+        h("h2", { class: "em-label" }, "Unsent replies"),
+      );
+      for (const form of orphans) {
+        section.append(
+          h("p", { class: "em-hint" }, "The item ", h("code", {}, form.dataset.for!), " is no longer shown in this view."),
+          form,
+        );
+      }
+      this.root.querySelector(".em-view")?.prepend(section);
+    }
+    if (kept.popover) {
+      this.root.append(kept.popover);
+      this.popover = kept.popover;
+    }
+    if (kept.focused && kept.focused.element.isConnected) {
+      kept.focused.element.focus({ preventScroll: true });
+      kept.focused.element.setSelectionRange(kept.focused.start, kept.focused.end);
+    }
+  }
+
+  /**
+   * Runs the action of a form. The form closes when the action is done, and
+   * stays as it is when the action was refused.
+   */
+  private submit(form: HTMLFormElement, run: () => ActionResult, close: () => void): void {
+    if (form.dataset.busy) return;
+    const finish = (outcome: void | { ok: boolean }) => {
+      delete form.dataset.busy;
+      for (const button of form.querySelectorAll("button")) button.disabled = false;
+      if (!outcome || outcome.ok) close();
+    };
+    form.dataset.busy = "true";
+    let result: ActionResult;
+    try {
+      result = run();
+    } catch (error) {
+      finish({ ok: false });
+      throw error;
+    }
+    if (result instanceof Promise) {
+      for (const button of form.querySelectorAll("button")) button.disabled = true;
+      result.then(finish, () => finish({ ok: false }));
+    } else {
+      finish(result);
+    }
   }
 
   // Reading.
@@ -627,6 +732,7 @@ class EndmarkRenderer implements Renderer {
       let failure = "";
       try {
         api = await load();
+        configureMermaid(api);
       } catch (error) {
         failure = `Mermaid could not be loaded: ${message(error)}`;
       }
@@ -713,9 +819,26 @@ class EndmarkRenderer implements Renderer {
     return text.trim() ? this.markdown(text, "em-note") : null;
   }
 
-  private button(label: string, run: (() => void) | undefined, cls = ""): HTMLButtonElement | null {
+  private button(label: string, run: (() => unknown) | undefined, cls = ""): HTMLButtonElement | null {
     if (!run) return null;
-    return h("button", { type: "button", class: `em-button ${cls}`.trim(), onclick: run }, label);
+    const button = h(
+      "button",
+      {
+        type: "button",
+        class: `em-button ${cls}`.trim(),
+        onclick: () => {
+          // An action that is still on its way is not sent twice.
+          const result = run();
+          if (result instanceof Promise) {
+            button.disabled = true;
+            const done = () => void (button.disabled = false);
+            result.then(done, done);
+          }
+        },
+      },
+      label,
+    );
+    return button;
   }
 
   private threadCard(thread: Thread, unanchored = false): HTMLElement {
@@ -788,13 +911,15 @@ class EndmarkRenderer implements Renderer {
         onclick: () => {
           if (card.querySelector(":scope > .em-form")) return;
           const text = h("textarea", { class: "em-input", rows: "3", "aria-label": label, placeholder: "Write in Markdown" });
-          const form = h(
+          const form: HTMLFormElement = h(
             "form",
             {
               class: "em-form",
+              dataset: { for: id },
               onsubmit: (event: Event) => {
                 event.preventDefault();
-                if (text.value.trim()) this.actions.reply!(id, text.value.trim());
+                const note = text.value.trim();
+                if (note) this.submit(form, () => this.actions.reply!(id, note), () => form.remove());
               },
             },
             text,
@@ -1185,15 +1310,16 @@ class EndmarkRenderer implements Renderer {
         "aria-label": kind === "comment" ? "Comment" : "Why (optional)",
         placeholder: kind === "comment" ? "Comment, in Markdown" : "Why (optional)",
       });
-      const element = h(
+      const element: HTMLFormElement = h(
         "form",
         {
           class: "em-form",
           onsubmit: (event: Event) => {
             event.preventDefault();
             const input = { quote: picked.quote, scopes: picked.scopes, note: note.value.trim() };
-            if (kind === "comment") this.actions.comment!(input);
-            else this.actions.suggest!({ ...input, replacement: replacement.value });
+            const run = () =>
+              kind === "comment" ? this.actions.comment!(input) : this.actions.suggest!({ ...input, replacement: replacement.value });
+            this.submit(element, run, close);
           },
         },
         h("div", { class: "em-label" }, kind === "comment" ? "Comment on" : "Replace"),
