@@ -469,12 +469,88 @@ async function narrow(dir: string): Promise<void> {
   }
 }
 
+async function themes(dir: string): Promise<void> {
+  const file = join(dir, "themes.md");
+  await writeFile(file, await readFile(join(root, "conformance/worked-example.md")));
+  const original = await readFile(file, "utf8");
+  const server = await view(file, "--by", "adam");
+  const page = await open(server);
+  const system = (value: "light" | "dark") =>
+    page.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value }] });
+  const background = () => page.evaluate<string>(`getComputedStyle(document.body).backgroundColor`);
+  const card = () => page.evaluate<string>(`getComputedStyle(t.card("s-4q8d")).backgroundColor`);
+  const pressed = () => page.evaluate<string>(`document.querySelector('#theme [aria-pressed="true"]')?.dataset.theme ?? ""`);
+  // The fill of the first box in the first diagram, and a mark that it was drawn anew.
+  const diagram = () =>
+    page.evaluate<string>(`(() => {
+      const svg = document.querySelector("#doc .em-pictures .em-figure svg");
+      const box = svg?.querySelector(".node rect, .node polygon, .node path");
+      return svg && box ? svg.id + " " + getComputedStyle(box).fill : "";
+    })()`);
+  const redrawn = async (before: string) => {
+    await page.waitFor(`(() => {
+      const svg = document.querySelector("#doc .em-pictures .em-figure svg");
+      return document.querySelectorAll("#doc .em-diagram.em-drawn").length === 2 && svg && svg.id !== ${JSON.stringify(before.split(" ")[0])};
+    })()`);
+    return diagram();
+  };
+  const LIGHT = "rgb(255, 255, 255)";
+  const DARK = "rgb(13, 17, 23)";
+  try {
+    console.log("\n# Light, dark and auto");
+    await page.waitFor(`document.querySelectorAll("#doc .em-diagram.em-drawn").length === 2`);
+    check("Auto is chosen at first", (await pressed()) === "auto");
+    check("with a light system, the page is light", (await background()) === LIGHT, await background());
+    const lightCard = await card();
+    const lightDiagram = await diagram();
+    check("the theme switch is labelled for assistive technology", await page.evaluate(`document.querySelector("#theme").getAttribute("aria-label") === "Colours" && document.querySelectorAll("#theme button").length === 3`));
+
+    await page.evaluate(`t.click(document.querySelector("#theme"), "Dark")`);
+    const darkDiagram = await redrawn(lightDiagram);
+    check("Dark makes the page dark", (await background()) === DARK, await background());
+    check("Dark reaches the renderer's cards", (await card()) !== lightCard, await card());
+    check("Dark redraws the diagrams in dark colours", darkDiagram.split(" ")[1] !== lightDiagram.split(" ")[1], `${lightDiagram} / ${darkDiagram}`);
+    check("Dark is shown as chosen", (await pressed()) === "dark");
+    check("the choice is kept in this browser", (await page.evaluate<string>(`localStorage.getItem("endmark-view-theme") ?? ""`)) === "dark");
+
+    await page.send("Page.reload");
+    await page.waitFor(`document.documentElement.dataset.ready === "true"`);
+    await page.evaluate(HELPERS);
+    await page.waitFor(`document.querySelectorAll("#doc .em-diagram.em-drawn").length === 2`);
+    check("after a reload the page is still dark", (await background()) === DARK && (await pressed()) === "dark", await background());
+
+    await system("dark");
+    await page.evaluate(`t.click(document.querySelector("#theme"), "Light")`);
+    await redrawn(await diagram());
+    check("Light overrides a dark system setting", (await background()) === LIGHT, await background());
+    check("Light reaches the renderer's cards", (await card()) === lightCard, await card());
+
+    const before = await diagram();
+    await page.evaluate(`t.click(document.querySelector("#theme"), "Auto")`);
+    await redrawn(before);
+    check("Auto follows a dark system setting", (await background()) === DARK, await background());
+    check("Auto forgets the stored choice", await page.evaluate(`localStorage.getItem("endmark-view-theme") === null && !document.documentElement.dataset.theme`));
+    const autoDark = await diagram();
+    await system("light");
+    const autoLight = await redrawn(autoDark);
+    check("in Auto, a change of system setting redraws the page and its diagrams", (await background()) === LIGHT && autoLight.split(" ")[1] === lightDiagram.split(" ")[1], `${autoDark} / ${autoLight}`);
+
+    check("changing theme wrote nothing", (await readFile(file, "utf8")) === original);
+    check("no console errors while changing theme", page.errors.length === 0, page.errors.join("\n      "));
+    check("no request left the server", foreign(page, server).length === 0, foreign(page, server).join(", "));
+  } finally {
+    await page.close();
+    await server.stop();
+  }
+}
+
 const dir = await mkdtemp(join(tmpdir(), "endmark-view-"));
 try {
   await writable(dir);
   await readOnly(dir);
   await hostile(dir);
   await narrow(dir);
+  await themes(dir);
 } catch (error) {
   failures.push(`the run stopped: ${error instanceof Error ? error.message : String(error)}`);
   console.log(`FAIL  the run stopped: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`);

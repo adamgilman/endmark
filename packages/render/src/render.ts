@@ -21,7 +21,7 @@ import type { Core } from "./core";
 import { lineDiff, wordDiff } from "./diff";
 import { h, sourceOffset, wrapMarks } from "./dom";
 import { randomId } from "./ids";
-import { loadMermaid, type MermaidApi } from "./mermaid";
+import { configureMermaid, loadMermaid, type MermaidApi } from "./mermaid";
 import {
   buildThreads,
   buildUnits,
@@ -98,6 +98,11 @@ export interface Renderer {
    * reply, is kept with its text, so a host may call this at any time.
    */
   update(source: string): void;
+  /**
+   * Draws the same source again, keeping open forms. A host calls it after
+   * changing the page's theme, so that diagrams are drawn in the new colours.
+   */
+  redraw(): void;
   setView(view: View): void;
   destroy(): void;
 }
@@ -190,6 +195,10 @@ class EndmarkRenderer implements Renderer {
     this.source = source;
     this.draw();
     this.restoreForms(kept);
+  }
+
+  redraw(): void {
+    this.update(this.source);
   }
 
   setView(view: View): void {
@@ -723,6 +732,7 @@ class EndmarkRenderer implements Renderer {
       let failure = "";
       try {
         api = await load();
+        configureMermaid(api);
       } catch (error) {
         failure = `Mermaid could not be loaded: ${message(error)}`;
       }

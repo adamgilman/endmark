@@ -13,7 +13,14 @@
   <body>
     <header class="top">
       <h1 id="file">Endmark</h1>
-      <p id="who"></p>
+      <div class="side">
+        <p id="who"></p>
+        <div id="theme" class="theme" role="group" aria-label="Colours">
+          <button type="button" data-theme="auto">Auto</button>
+          <button type="button" data-theme="light">Light</button>
+          <button type="button" data-theme="dark">Dark</button>
+        </div>
+      </div>
     </header>
 
     <p id="status" class="status" role="status" aria-live="polite">Loading.</p>

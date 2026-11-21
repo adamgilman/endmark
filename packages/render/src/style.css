@@ -31,8 +31,12 @@
   overflow-wrap: break-word;
 }
 
+/*
+ * Dark colours. They follow the reader's system setting, unless the host
+ * page sets data-theme="light" or data-theme="dark" on its root element.
+ */
 @media (prefers-color-scheme: dark) {
-  .em-root {
+  :root:not([data-theme="light"]) .em-root {
     --em-bg: #0d1117;
     --em-surface: #161b22;
     --em-text: #e6edf3;
@@ -54,6 +58,29 @@
     --em-s2: #d2a8ff;
     --em-s3: #ffa657;
   }
+}
+
+:root[data-theme="dark"] .em-root {
+  --em-bg: #0d1117;
+  --em-surface: #161b22;
+  --em-text: #e6edf3;
+  --em-muted: #9198a1;
+  --em-border: #3d444d;
+  --em-accent: #4493f8;
+  --em-on-accent: #0d1117;
+  --em-quote-bg: #4d3c00;
+  --em-quote-line: #d29922;
+  --em-del: #ff7b72;
+  --em-del-bg: #4c1a1d;
+  --em-ins: #56d364;
+  --em-ins-bg: #12361f;
+  --em-warn: #d29922;
+  --em-warn-bg: #3a2d00;
+  --em-landed-bg: #0c2d6b;
+  --em-s0: #56d364;
+  --em-s1: #79c0ff;
+  --em-s2: #d2a8ff;
+  --em-s3: #ffa657;
 }
 
 .em-root *,

@@ -15,7 +15,7 @@ It holds no logic for the format. Every read goes through `endmark-core`, compil
 | `src/bytes.ts` | Converts the core's byte ranges to string indices. |
 | `src/diff.ts` | Word and line diffs. |
 | `src/mermaid.ts` | Loads `mermaid` on first use. |
-| `src/style.css` | The styles. Light and dark. |
+| `src/style.css` | The styles. Light and dark: dark follows the reader's system setting, unless the host page sets `data-theme="light"` or `data-theme="dark"` on `<html>`. After changing it, call `redraw()` so diagrams are drawn in the new colours. |
 | `build.ts` | Builds the wasm module, the demo page, and the page of `endmark view`. |
 | `serve.ts` | Serves the built demo on localhost. |
 | `test/` | Unit tests, a smoke test that runs the built demo in headless Chromium, and one that runs `endmark view`. |

@@ -31,6 +31,8 @@ Open that address. The page shows the document with its comments and suggestions
 
 The page follows the file. Change it in an editor, or let an agent run `endmark comment` in another terminal, and the page shows the change within a second or two. A reply you are half way through typing stays as it is.
 
+The page follows your system's light or dark setting. The Auto, Light and Dark buttons in its header override that, and the browser remembers the choice.
+
 - `--read-only` shows the file and writes nothing. It needs no `--by`.
 - `--port N` uses another port. `--port 0` picks a free one.
 - `--for PERSON` names the person an agent acts for, as on the commands that write.

@@ -18,7 +18,7 @@ The first version. The format is defined in [RFC 0001](rfcs/0001-endmark.md) and
 - One command per verb to write records. A write that a reader would ignore is refused and leaves the file untouched.
 - `revert` undoes an applied change on the record, and can be reverted in turn.
 - `skill`: prints a SKILL.md document that tells an AI agent what Endmark is and how to use the command.
-- `view`: serves the reference renderer for one file at `http://127.0.0.1:4173/`. The page shows the four views, writes each action to the file on disk through the same code as the commands, and follows the file when it changes. The page is built into the binary. It is an example host for one person: loopback only, with `--read-only` and `--port`. See SECURITY.md for what it protects against.
+- `view`: serves the reference renderer for one file at `http://127.0.0.1:4173/`. The page shows the four views, writes each action to the file on disk through the same code as the commands, and follows the file when it changes. The page is built into the binary. It is an example host for one person: loopback only, with `--read-only` and `--port`. It follows the system's light or dark setting, and a switch in its header overrides that. See SECURITY.md for what it protects against.
 
 - Rough edges found while writing the agent instructions:
   - `ENDMARK_FOR` stands in for `--for`. An author that starts with `agent:` and names no person gets a warning on standard error.

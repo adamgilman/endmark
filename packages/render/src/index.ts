@@ -3,4 +3,5 @@ export { mount, type ActionResult, type Actions, type Renderer, type RenderOptio
 export { ByteMap, byteToIndex, indexToByte } from "./bytes";
 export { changedLines, lineDiff, wordDiff, type Segment } from "./diff";
 export { randomId } from "./ids";
+export { pageTheme } from "./mermaid";
 export type * from "./types";

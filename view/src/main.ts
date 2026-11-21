@@ -4,6 +4,7 @@
 
 import { loadCore, mount, type Actions, type Renderer } from "../../packages/render/src/index";
 import { Client, type Failure, type Outcome } from "./client";
+import { themeSwitch } from "./theme";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -107,6 +108,8 @@ async function start(): Promise<void> {
     // An image would be a request to somewhere else, or to a file this server does not serve.
     images: false,
   });
+  // Diagrams are pictures drawn for one theme, so a change of theme draws them again.
+  themeSwitch($("theme"), () => renderer.redraw());
   report({
     ok: true,
     message: first.read_only
