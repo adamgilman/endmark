@@ -58,12 +58,19 @@ struct Server {
 
 impl Server {
     fn start(file: &Path, options: &[&str]) -> Server {
+        Server::start_with(file, options, &[])
+    }
+
+    /// Starts it with these environment variables set.
+    fn start_with(file: &Path, options: &[&str], env: &[(&str, &str)]) -> Server {
         let mut child = Command::new(env!("CARGO_BIN_EXE_endmark"))
             .arg("view")
             .args(["--port", "0"])
             .args(options)
             .arg(file)
             .env_remove("ENDMARK_BY")
+            .env_remove("ENDMARK_FOR")
+            .envs(env.iter().copied())
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -242,6 +249,27 @@ fn it_says_where_it_serves() {
             server.port
         )
     );
+}
+
+#[test]
+fn it_takes_the_person_from_endmark_for_as_the_commands_do() {
+    let dir = TempDir::new();
+    let file = dir.example("notes.md");
+    let env = [("ENDMARK_BY", "agent:claude"), ("ENDMARK_FOR", "adam")];
+    let from_env = Server::start_with(&file, &[], &env);
+    let state = from_env.api("/api/file");
+    assert_eq!(
+        (state["by"].as_str(), state["for"].as_str()),
+        (Some("agent:claude"), Some("adam"))
+    );
+    drop(from_env);
+
+    let flag_wins = Server::start_with(&file, &["--for", "beth"], &env);
+    assert_eq!(flag_wins.api("/api/file")["for"], "beth");
+    drop(flag_wins);
+
+    let empty = Server::start_with(&file, &["--by", "maria"], &[("ENDMARK_FOR", "")]);
+    assert_eq!(empty.api("/api/file")["for"], Value::Null);
 }
 
 #[test]

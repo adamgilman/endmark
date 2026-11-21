@@ -95,7 +95,9 @@ pub fn run(args: &[String]) -> Result<ExitCode, String> {
     let mut port = DEFAULT_PORT;
     let mut read_only = false;
     let mut by = std::env::var("ENDMARK_BY").ok();
-    let mut person: Option<String> = None;
+    // As in the writing commands: the flags win over the environment, and
+    // an empty ENDMARK_FOR counts as unset.
+    let mut person: Option<String> = std::env::var("ENDMARK_FOR").ok().filter(|p| !p.is_empty());
     let mut files: Vec<&String> = Vec::new();
     let mut only_files = false;
     let mut it = args.iter();

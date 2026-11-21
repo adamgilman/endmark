@@ -3,7 +3,7 @@
 // The page that `endmark view` serves. Every file but the page itself is stored
 // compressed with gzip, and is sent that way.
 //
-// inputs: sha256:cd237d2cd4a144e69a92a2375bef85224c0e88cb968e55f546d02d7d9071e4c4
+// inputs: sha256:e20d4019fbdc2a8effaf752a9fcec7f3da656b9ec34b34ffb757347c7cb913cd
 
 /// The page. The server replaces `__ENDMARK_TOKEN__` in it.
 pub const INDEX: &str = include_str!("index.html");
