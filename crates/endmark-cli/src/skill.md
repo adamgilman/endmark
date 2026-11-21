@@ -9,7 +9,7 @@ Endmark keeps review comments, suggested changes and their history inside the Ma
 
 A file uses Endmark if a line in it starts with `<!--endmark`. A plain Markdown file becomes one with the first command that writes to it.
 
-This text is printed by `endmark skill`. `endmark --help` lists every command and option.
+This text is printed by `endmark skill`. `endmark help` lists every command and option.
 
 ## Rules
 
@@ -22,7 +22,7 @@ This text is printed by `endmark skill`. `endmark --help` lists every command an
 
 ## Who is writing
 
-Every command that writes needs an author. As an agent, pass `--by agent:NAME --for PERSON`: NAME is you, for example `agent:claude`, and PERSON is the handle of the person you act for. Use the handle that person already has in `endmark log FILE` if there is one. Handles have no spaces. `ENDMARK_BY` can stand in for `--by`. `--for` has to be passed each time.
+Every command that writes needs an author. As an agent, pass `--by agent:NAME --for PERSON`: NAME is you, for example `agent:claude`, and PERSON is the handle of the person you act for. Use the handle that person already has in `endmark log FILE` if there is one. Handles have no spaces. `ENDMARK_BY` can stand in for `--by`, and `ENDMARK_FOR` for `--for`; an option given on the command wins. If you write as `agent:NAME` and name no person, the record is still written, and the command prints a `warning:` line to standard error. Do not leave it at that: name the person.
 
 ## Reading
 
@@ -35,7 +35,7 @@ Ids start with `c-` (comment), `s-` (suggestion), `e-` (edit) or `r-` (revert). 
 
 What `status` shows:
 
-- A comment is `open`, `resolved` or `retracted`, or a `reply to` another. It is `attached` (its quote is in the document once), `detached` (not there), `ambiguous` (there more than once) or `unquoted` (about the whole document, or a reply).
+- A comment is `open`, `resolved` or `retracted`, or a `reply to` another. It is `attached` (its quote is in the document once), `detached` (not there), `ambiguous` (there more than once) or `unquoted` (about the whole document, or a reply). A retracted comment shows none of these: the column is empty.
 - A suggestion is `open`, `accepted`, `rejected` or `retracted`. An open one is `applicable` or `stale`. A stale one cannot be accepted.
 - An accepted suggestion, an edit and a revert are changes. A change shows `reverted` when it has been undone.
 
@@ -45,41 +45,42 @@ These commands run as written, in this order, on a file `notes.md` that has a co
 
 ```sh
 export ENDMARK_BY=agent:claude
+export ENDMARK_FOR=adam
 
 # Comment on quoted text, comment on the whole document, reply.
-endmark comment --for adam --on "fixed 5 second delay" --note "Should this back off?" --id c-a001 notes.md
-endmark comment --for adam --note "Needs a section on authentication." notes.md
-endmark reply --for adam --note "Checked: staging uses 8443." notes.md c-7f3k
+endmark comment --on "fixed 5 second delay" --note "Should this back off?" --id c-a001 notes.md
+endmark comment --note "Needs a section on authentication." notes.md
+endmark reply --note "Checked: staging uses 8443." notes.md c-7f3k
 
 # "Relay" is in the document many times. --in names the one place.
-endmark comment --for adam --in "# Relay" --on "Relay" --note "Link to the repository." notes.md
+endmark comment --in "# Relay" --on "Relay" --note "Link to the repository." notes.md
 
 # Suggest: propose a change. The document is not changed until someone accepts.
-endmark suggest --for adam --replace "5 second delay" --with "10 second delay" --note "The v2 default." --id s-a001 notes.md
+endmark suggest --replace "5 second delay" --with "10 second delay" --note "The v2 default." --id s-a001 notes.md
 
 # Decide on a suggestion.
-endmark reject --for adam --note "Keep 5 seconds." notes.md s-a001
-endmark accept --for adam notes.md s-4q8d
+endmark reject --note "Keep 5 seconds." notes.md s-a001
+endmark accept notes.md s-4q8d
 
 # Edit: change the document now, and log it.
-endmark edit --for adam --replace '2. Set `RELAY_TOKEN`.' --with '2. Set `RELAY_TOKEN` in the environment.' --note "Say where." notes.md
+endmark edit --replace '2. Set `RELAY_TOKEN`.' --with '2. Set `RELAY_TOKEN` in the environment.' --note "Say where." notes.md
 
 # Undo a change. Then bring it back, by reverting the revert.
-endmark revert --for adam --note "Rollout postponed." --id r-a001 notes.md s-4q8d
-endmark revert --for adam --note "Rollout went ahead." notes.md r-a001
+endmark revert --note "Rollout postponed." --id r-a001 notes.md s-4q8d
+endmark revert --note "Rollout went ahead." notes.md r-a001
 
 # Close a thread, open it again, withdraw your own comment or suggestion.
-endmark resolve --for adam notes.md c-7f3k
-endmark reopen --for adam notes.md c-7f3k
-endmark retract --for adam notes.md c-a001
+endmark resolve notes.md c-7f3k
+endmark reopen notes.md c-7f3k
+endmark retract notes.md c-a001
 
 # This edit removes the words c-7f3k quotes. It prints "detached c-7f3k".
-endmark edit --for adam --replace "listens on port 8443" --with "listens on 8443/tcp" notes.md
+endmark edit --replace "listens on port 8443" --with "listens on 8443/tcp" notes.md
 # Ask where the comment probably belongs, then let repair write that down.
 endmark lint --suggest notes.md
-endmark repair --for adam notes.md
+endmark repair notes.md
 # Or point the comment at text yourself.
-endmark anchor --for adam --on "8443/tcp" notes.md c-7f3k
+endmark anchor --on "8443/tcp" notes.md c-7f3k
 
 endmark lint --strict notes.md
 ```
@@ -89,11 +90,11 @@ More on these:
 - **Suggest or edit?** Use `suggest` when the user asked for a review, for proposals, or for changes they want to approve. Use `edit` when the user asked you to make the change. If unsure, `suggest`.
 - **Several edits in one suggestion or edit:** repeat `--replace TEXT --with TEXT`, each with its own optional `--in` before it. They are accepted, rejected and reverted together.
 - **Insert:** quote a neighbour in `--replace` and repeat it in `--with` together with the new text. `--replace ""` appends to the end of the document.
-- **Delete:** `--with ""`. Add `--in` with text wider than what you delete, or the deletion cannot be reverted later.
+- **Delete:** `--with ""`. Add `--in` with text wider than what you delete, or the deletion cannot be reverted later. The command prints a `warning:` line to standard error when it writes a deletion like that.
 - **Notes** (`--note`) are Markdown and may span lines.
 - **Revert** takes the id of an accepted suggestion, an edit or a revert, and undoes all of its edits. Nothing is erased: a `revert` record is added.
 - **After `accept`, `edit` or `revert`** the command names the comments it `re-pointed`, the comments it `detached`, and the suggestions that are `now stale`.
-- **A detached or ambiguous comment:** `endmark lint --suggest FILE` proposes a place and says how sure it is. `endmark repair FILE [ID...]` writes the proposals it is at least 80% sure of, and says which it left alone. For those, read the document and use `anchor`, or leave the comment for a person.
+- **A detached or ambiguous comment:** `endmark lint --suggest FILE` proposes a place and says how sure it is. `endmark repair FILE [ID...]` writes the proposals it is at least 80% sure of, and says which it left alone. Leaving one alone is not a failure: the exit status is 0. For those, read the document and use `anchor`, or leave the comment for a person.
 - **Trying a command:** `--dry-run` prints the resulting file and writes nothing. With `-` as FILE the command reads standard input and prints the result.
 
 ## When a command refuses
@@ -115,12 +116,12 @@ notes.md: refused[quote-ambiguous]: "Relay" is in the document more than once
 | `not-author` | Only the author of an item can retract it. Reject a suggestion instead, or reply. |
 | `already-final` | The suggestion is already accepted, rejected or retracted. Start a new one. |
 | `wrong-target` | The command does not apply to that kind of item: `accept` and `reject` take a suggestion, `resolve` and `reopen` a comment. |
-| `no-change` | The thread is already in that state. Nothing to do. |
+| `no-change` | The thread is already in that state. Nothing to do. For a reply, the message names the thread it is in. |
 | `empty` | A comment needs a note, quoted text, or both. |
 | `not-a-change` | Only an accepted suggestion, an edit or a revert can be reverted. |
 | `not-in-effect` | The change is already undone. The hint names the id to revert to bring it back. |
 | `text-changed` | The text was changed again after the change you want to revert. Make the change with `suggest` or `edit`. |
-| `unscoped-deletion` | The change deleted text without `--in`. Put the text back with `suggest` or `edit`. |
+| `unscoped-deletion` | The change deleted text without `--in`, or deleted all of its `--in` text. Put the text back with `suggest` or `edit`. |
 | `bad-value` | `--by`, `--for` or `--id` is empty or has a space in it. |
 | `id-in-use` | Choose another `--id`, or leave it out. |
 | `unreadable` | The file has errors. Run `endmark lint FILE` and report them. |
@@ -137,6 +138,6 @@ For any other code, follow the hint. If a refusal means the task cannot be done 
 
 ## Exit status
 
-- 0: success. For `lint`: no errors.
-- 1: a write was refused and nothing was written. For `lint` and `status`: the file has errors. For `lint --strict`: errors or warnings.
+- 0: success. For `lint`: no errors. For `repair`: also when it left a comment alone, or had nothing to repair.
+- 1: a write was refused and nothing was written; that goes for `repair` too. For `lint` and `status`: the file has errors. For `lint --strict`: errors or warnings.
 - 2: a file could not be read or written, or the arguments were wrong, for example a missing `--by`.

@@ -19,6 +19,16 @@ The first version. The format is defined in [RFC 0001](rfcs/0001-endmark.md) and
 - `revert` undoes an applied change on the record, and can be reverted in turn.
 - `skill`: prints a SKILL.md document that tells an AI agent what Endmark is and how to use the command.
 
+- Rough edges found while writing the agent instructions:
+  - `ENDMARK_FOR` stands in for `--for`. An author that starts with `agent:` and names no person gets a warning on standard error.
+  - `suggest` and `edit` warn when they write a deletion that `revert` could not undo: one with no `--in`, or one that deletes all of its `--in` text. The refusal of such a revert now says which of the two it was.
+  - A refusal with a linter's code, such as `not-author`, shows that code's hint.
+  - `repair` exits 1 and writes nothing when an anchor is refused, and prints the refusal like every other command. Leaving a comment alone is still exit 0.
+  - `body` prints one line ending after the document, not a blank line for each record, and rejects options it does not use. The body the format defines is unchanged.
+  - `status` leaves the place of a retracted comment empty in its text output. JSON is unchanged.
+  - A `no-change` refusal reached through a reply names the reply and its thread. `anchor` on a comment that was attached says `moved attached comment`.
+  - `endmark help` is listed in the usage, and the usage no longer says `reply` needs `--note`.
+
 **The `endmark-core` crate**
 
 - `parse` for reading, and the `write` module for writing.

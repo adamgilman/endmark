@@ -113,7 +113,7 @@ A refused write must leave the file unchanged. The reasons are:
 | `not-a-change` | The item is a comment, or a suggestion that was never accepted |
 | `not-in-effect` | The change is already undone |
 | `text-changed` | The text the change wrote is no longer in the body exactly once |
-| `unscoped-deletion` | The change deleted text with no `in` fence, so the place is not recorded |
+| `unscoped-deletion` | The change deleted text with no `in` fence, or deleted all of the text in its `in` fence, so the place is not recorded |
 | `id-in-use` | The id for the new record is taken |
 | `quote-not-found` | A quote, or the text an edit replaces, is not in the body |
 | `quote-ambiguous` | It is in the body more than once, and no scope narrows it |

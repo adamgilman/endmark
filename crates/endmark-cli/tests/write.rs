@@ -11,6 +11,7 @@ fn endmark(args: &[&str], stdin: &[u8]) -> Output {
     let mut child = Command::new(env!("CARGO_BIN_EXE_endmark"))
         .args(args)
         .env_remove("ENDMARK_BY")
+        .env_remove("ENDMARK_FOR")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

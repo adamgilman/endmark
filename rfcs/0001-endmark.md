@@ -524,7 +524,7 @@ pub struct Document {
 | Command | Does |
 | --- | --- |
 | `endmark lint FILE...` | Validates files (12.4). The first command to ship. With `--suggest`, also says where each unanchored comment probably belongs. |
-| `endmark body FILE` | Prints the body only |
+| `endmark body FILE` | Prints the body only, without the blank lines that the records leave at its end (4.2). It takes no options. |
 | `endmark status FILE` | Lists every item with its state; `--format json` for tools |
 | `endmark comment FILE` | Comment on quoted text (`--on`, with an optional `--in`), or on the whole document |
 | `endmark reply FILE ID` | Reply to a comment, or remark on another item |
@@ -534,18 +534,20 @@ pub struct Document {
 | `endmark reject`, `retract FILE ID` | Append the action |
 | `endmark resolve`, `reopen FILE ID` | Append the action. `ID` may be any comment of the thread; the record names the root. |
 | `endmark anchor FILE ID` | Re-point a comment at new text (`--on`, with an optional `--in`) |
-| `endmark repair FILE [ID...]` | Re-points unanchored comments for which one place clearly stands out, by appending `anchor` records (6.1, 12.4). `--min-score N` sets how sure to be; the default is 80. |
+| `endmark repair FILE [ID...]` | Re-points unanchored comments for which one place clearly stands out, by appending `anchor` records (6.1, 12.4). `--min-score N` sets how sure to be; the default is 80. A comment left alone is not a failure. If an `anchor` is refused, nothing is written and it exits 1. |
 | `endmark revert FILE ID` | Undo a change: apply its edits backwards and append a `revert` record. `ID` is an accepted suggestion, an `edit` or a revert, and may be any link of a chain: the command follows the chain to its tip (9.3). It refuses if `ID` is not in effect, and names the id that would bring it back. `--by` or `ENDMARK_BY` gives the author; `--note`, `--for`, `--id`, `--at` and `--dry-run` are optional. |
 | `endmark log FILE` | Prints history, newest first; `--format json` for tools |
 | `endmark skill` | Prints instructions for AI agents as a SKILL.md document: what Endmark is, the rules of section 10, and how to use each command |
 
-Every command that writes takes `--by` (or `ENDMARK_BY`), and optionally `--for`, `--note`, `--id`, `--at` and `--dry-run`. With `-` as the file it reads standard input and prints the result. It exits 1, with the file untouched, when the write is refused.
+Every command that writes takes `--by` (or `ENDMARK_BY`), and optionally `--for` (or `ENDMARK_FOR`), `--note`, `--id`, `--at` and `--dry-run`. With `-` as the file it reads standard input and prints the result. It exits 1, with the file untouched, when the write is refused. A refusal that carries a linter's code carries that code's hint too.
+
+Two things are warned about on standard error and written all the same: an author that starts with `agent:` with no person named, and, from `suggest` and `edit`, a deletion that `revert` could not put back, because it has no `in` scope or deletes all of it (9.3).
 
 **What the writing commands refuse (new).** A writer in the reference implementation never writes a record that a reader would ignore or report:
 
 - a quote, or the `replace` text of an edit, that does not match exactly once, or two edits that overlap;
 - an action the reader would ignore under 8.1, such as a `retract` by someone other than the author, with the linter's code for it;
-- a `resolve` of a resolved thread or a `reopen` of an open one, which would change nothing;
+- a `resolve` of a resolved thread or a `reopen` of an open one, which would change nothing; given a reply, the refusal names the thread it is in;
 - a comment with neither a quote nor a note;
 - a note, a quote or an id that a reader would read back differently from what was given.
 
