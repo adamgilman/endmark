@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Status | Draft, open for comment |
+| Status | Released as 0.1.0, open for comment |
 | Date | 2026-11-13 |
 | Author | Adam Gilman |
 | Derived from | "Margin" draft spec v0.1 (2026-11-11). Margin was the working name; see D-6. |
@@ -447,7 +447,7 @@ An aware renderer draws the body as ordinary Markdown, then layers records on to
 
 ### 12.1 Starting point
 
-Milestones M1 to M5 are implemented, on 2026-11-20: `endmark-core` with the read path and one write operation per verb; the `endmark` command with every command in the table in 12.3; the reader and writer fixtures (12.6); the compatibility matrix (12.7); the renderer in `packages/render`; and the demo page in `demo`. Nothing has been released. The gaps against this RFC that are known are listed in 12.9.
+Milestones M1 to M5 are implemented, on 2026-11-20: `endmark-core` with the read path and one write operation per verb; the `endmark` command with every command in the table in 12.3; the reader and writer fixtures (12.6); the compatibility matrix (12.7); the renderer in `packages/render`; and the demo page in `demo`. Version 0.1.0, released on 2026-11-25, completes M6. The gaps against this RFC that are known are listed in 12.9.
 
 The draft spec came with a 145-line Python example parser. It was an illustration, not a foundation, and it is not part of this repository. Before it was set aside it was run for this RFC, on 2026-11-13, with two results worth keeping.
 

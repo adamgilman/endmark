@@ -23,6 +23,6 @@ assert!(doc.diagnostics.is_empty());
 - The functions in `write` never produce a record that `parse` would ignore or report. A write that cannot be done is refused with a `WriteError`.
 - The `commonmark` feature, on by default, cross-checks each record against CommonMark block structure. Turn it off to drop the `pulldown-cmark` dependency.
 
-The format is defined in [RFC 0001](https://github.com/adamgilman/endmark/blob/main/rfcs/0001-endmark.md). The API may change before 0.1.0.
+The format is defined in [RFC 0001](https://github.com/adamgilman/endmark/blob/main/rfcs/0001-endmark.md). Before 1.0, a minor version may change the API.
 
 Licence: MIT.

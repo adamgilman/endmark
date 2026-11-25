@@ -1,7 +1,8 @@
 name: Release
 
-# Pushing a tag such as v0.1.0 builds the binaries and creates a GitHub
-# release with them. A tag with a hyphen, such as v0.1.0-alpha.1, makes a
+# Pushing a tag such as v0.1.0 builds the binaries, creates a GitHub
+# release with them and publishes the crates to crates.io (which needs a
+# CARGO_REGISTRY_TOKEN secret). A tag with a hyphen, such as v0.2.0-rc.1, makes a
 # pre-release.
 #
 # It can also be started by hand from the Actions tab. That run builds and
@@ -73,6 +74,30 @@ jobs:
             endmark-*.tar.gz
             endmark-*.zip
           if-no-files-found: error
+
+  crates:
+    name: crates.io
+    needs: build
+    # A tag publishes endmark-core and then endmark. The rehearsal packages
+    # and verifies both against a local registry, and uploads nothing.
+    if: always() && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install stable --profile minimal && rustup default stable
+      - name: Dry run
+        if: github.event_name != 'push'
+        run: cargo publish --workspace --exclude endmark-wasm --locked --dry-run
+      - name: Publish
+        if: github.event_name == 'push'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          if [ -z "$CARGO_REGISTRY_TOKEN" ]; then
+            echo "the repository has no CARGO_REGISTRY_TOKEN secret" >&2
+            exit 1
+          fi
+          cargo publish --workspace --exclude endmark-wasm --locked
 
   publish:
     name: Create the release

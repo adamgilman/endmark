@@ -2,14 +2,22 @@
 
 Endmark adds comments, grouped suggestions and a decision history to a Markdown file without changing how the file renders. The Markdown body stays untouched, and all review state lives in an append-only log of HTML-comment records at the end of the file.
 
-**Status: alpha.** The format, the linter, the command-line tool, a review renderer and a demo page all exist and are tested. Nothing has been released yet. The format is defined in [RFC 0001](rfcs/0001-endmark.md) and may still change before 0.1.0.
+**Status: 0.1.0, the first release.** The format is defined in [RFC 0001](rfcs/0001-endmark.md). The `<!--endmark` token is frozen. Before 1.0, a minor version may change the rest of the format, and [CHANGELOG.md](CHANGELOG.md) will say how.
 
 ## Install
 
-You need a Rust toolchain, 1.80 or later.
+Download the archive for your platform from the [latest release](https://github.com/adamgilman/endmark/releases/latest), unpack it, and put `endmark` somewhere on your `PATH`. There are builds for Linux (x86-64), macOS (Apple silicon and Intel) and Windows (x86-64). `SHA256SUMS` in the release lists their checksums.
+
+The macOS binaries are not signed, so macOS refuses to open a downloaded one at first. Clear the quarantine flag once:
 
 ```sh
-cargo install --git https://github.com/adamgilman/endmark endmark
+xattr -d com.apple.quarantine ./endmark
+```
+
+Or install from [crates.io](https://crates.io/crates/endmark) with a Rust toolchain, 1.80 or later:
+
+```sh
+cargo install endmark
 ```
 
 Or build from a checkout with `cargo build --release`; the binary is `target/release/endmark`. It is one static binary with no configuration. It connects to nothing. Only `endmark view` listens, and only on your own computer.
