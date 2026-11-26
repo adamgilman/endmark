@@ -121,7 +121,7 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" != "push" ]; then version="rehearsal"; fi
           name="endmark-$version-${{ matrix.target }}"
           mkdir "$name"
-          cp README.md LICENSE "$name/"
+          cp README.md LICENSE crates/endmark-cli/THIRD_PARTY_NOTICES.txt "$name/"
           if [ "${{ runner.os }}" = "Windows" ]; then
             cp "target/${{ matrix.target }}/release/endmark.exe" "$name/"
             7z a "$name.zip" "$name" > /dev/null

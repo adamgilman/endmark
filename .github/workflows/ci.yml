@@ -48,6 +48,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
       - run: rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown && rustup default stable
+      # The license notices of everything built into the binary and the
+      # page, and the LICENSE copy in each crate, match the lock files.
+      - run: python3 scripts/notices.py --check
       # The page that the binary embeds is committed in crates/endmark-cli/view.
       # This fails when it was built from other sources than the ones in the
       # tree. It compares a hash of the sources, not the built files: this

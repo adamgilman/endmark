@@ -28,6 +28,7 @@ CI runs the same three commands, on Linux, macOS and Windows.
 - `crates/endmark-wasm/` is the library as a WebAssembly module. The renderer in `packages/render/` and the demo page in `demo/` are TypeScript on top of it, built and tested with [Bun](https://bun.sh); their READMEs give the commands.
 - `view/` is the page that `endmark view` serves. Its built form is committed in `crates/endmark-cli/view/` and embedded in the binary. After changing the renderer, `view/`, or the source of `endmark-core` or `endmark-wasm`, run `bun run build` in `packages/render/` and commit that directory. `cargo test` fails until you do.
 - `eval/` measures repair suggestions against the histories of real documents. Run `eval/run.sh` before and after changing `crates/endmark-core/src/repair.rs`, and add a scenario to `crates/endmark-core/tests/repair_scenarios.rs` for any kind of edit it gets wrong.
+- `crates/endmark-cli/THIRD_PARTY_NOTICES.txt` lists the license of every crate and JavaScript package built into the binary, and `endmark --licenses` prints it. After changing `Cargo.lock` or `packages/render/bun.lock`, run `python3 scripts/notices.py` and commit what it writes. CI fails until you do.
 - `spec/endmark.md` is generated from the RFC. After changing the RFC, run `UPDATE_SPEC=1 cargo test --test spec`.
 
 ## Fixtures
@@ -35,6 +36,10 @@ CI runs the same three commands, on Linux, macOS and Windows.
 Every rule has a fixture in `conformance/`, and a change in behaviour needs one. [conformance/README.md](conformance/README.md) gives the format.
 
 Write the expected output by hand, from the RFC. Do not paste what the implementation prints: a fixture that was captured from the code can only show that the code has not changed.
+
+## Conduct
+
+Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
 
 ## Reporting a bug
 

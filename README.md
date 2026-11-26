@@ -1,5 +1,7 @@
 # Endmark
 
+[![CI](https://github.com/adamgilman/endmark/actions/workflows/ci.yml/badge.svg)](https://github.com/adamgilman/endmark/actions/workflows/ci.yml) [![crates.io](https://img.shields.io/crates/v/endmark.svg)](https://crates.io/crates/endmark)
+
 Endmark adds comments, grouped suggestions and a decision history to a Markdown file without changing how the file renders. The Markdown body stays untouched, and all review state lives in an append-only log of HTML-comment records at the end of the file.
 
 The project page is [adamgilman.com/endmark](https://www.adamgilman.com/endmark).
@@ -282,8 +284,10 @@ Yes in every CommonMark engine tested, with raw HTML left on. [compat/](compat/R
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Changes are listed in [CHANGELOG.md](CHANGELOG.md), and [SECURITY.md](SECURITY.md) says what to keep in mind when agents read files with hidden records.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Changes are listed in [CHANGELOG.md](CHANGELOG.md), and [SECURITY.md](SECURITY.md) says what to keep in mind when agents read files with hidden records. Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
 
 ## Licence
 
 MIT. See [LICENSE](LICENSE).
+
+The binary contains crates and JavaScript packages under their own licenses, all permissive except elkjs, which is used under the Eclipse Public License 2.0. [THIRD_PARTY_NOTICES.txt](crates/endmark-cli/THIRD_PARTY_NOTICES.txt) lists them with their license texts, and `endmark --licenses` prints the same.

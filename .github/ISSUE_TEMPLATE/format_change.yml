@@ -1,0 +1,33 @@
+name: Format change
+description: Propose a change to a rule of the Endmark format, or a new one.
+labels: [format]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The format is defined in [RFC 0001](https://github.com/adamgilman/endmark/blob/main/rfcs/0001-endmark.md). Sections 13 and 14 list the decisions that are still open. A change lands as one pull request that changes the RFC, the implementation and the fixtures together; see [CONTRIBUTING.md](https://github.com/adamgilman/endmark/blob/main/CONTRIBUTING.md).
+  - type: textarea
+    id: problem
+    attributes:
+      label: What goes wrong today
+      description: What you tried to do, and why the format as it stands does not allow it or gets it wrong.
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Example file
+      description: A small file that shows the problem.
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed rule
+      description: Optional. The change you have in mind, and the RFC sections it touches.
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Existing files
+      description: Optional. How files written under the current rules would read under the new one.

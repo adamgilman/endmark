@@ -1,0 +1,28 @@
+# Monthly, one pull request per ecosystem. An update to Cargo.lock or to
+# packages/render/bun.lock fails CI until the notices are regenerated
+# (python3 scripts/notices.py), and an update to bun.lock also until the
+# page of `endmark view` is rebuilt (bun run build in packages/render).
+# Both are committed to the Dependabot branch before merging.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      cargo:
+        patterns: ["*"]
+  - package-ecosystem: bun
+    directory: /packages/render
+    schedule:
+      interval: monthly
+    groups:
+      render:
+        patterns: ["*"]

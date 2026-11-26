@@ -39,7 +39,7 @@ Usage:
   endmark view [--port N] [--read-only] FILE
 
   endmark skill
-  endmark help | --help | --version
+  endmark help | --help | --version | --licenses
 
 AI agents: run endmark skill first. It prints instructions for using
 this tool, as a SKILL.md document.
@@ -111,6 +111,8 @@ Options:
   --at TIME        RFC 3339 UTC time. Default: now
   --port N         view: the port. Default: 4173. 0 picks a free port
   --read-only      view: show the file and write nothing. Needs no --by
+  --licenses       print endmark's license, and the licenses of the
+                   software built into it
 
 Exit status:
   0  no errors; for a write: the file was written; for repair: also
@@ -198,6 +200,7 @@ fn run(args: &[String]) -> Result<ExitCode, String> {
             println!("endmark {}", env!("CARGO_PKG_VERSION"));
             Ok(ExitCode::SUCCESS)
         }
+        "--licenses" => licenses(rest),
         "lint" => lint(parse_options(rest, true, true)?),
         "status" => status(parse_options(rest, false, true)?),
         "body" => body(parse_options(rest, false, false)?),
@@ -221,6 +224,22 @@ fn skill(args: &[String]) -> Result<ExitCode, String> {
     }
     io::stdout()
         .write_all(SKILL.as_bytes())
+        .map_err(|e| format!("standard output: {e}"))?;
+    Ok(ExitCode::SUCCESS)
+}
+
+/// Endmark's own license, then the notices of the crates and JavaScript
+/// packages built into the binary, which `scripts/notices.py` writes.
+const LICENSE: &str = include_str!("../LICENSE");
+const THIRD_PARTY_NOTICES: &str = include_str!("../THIRD_PARTY_NOTICES.txt");
+
+fn licenses(args: &[String]) -> Result<ExitCode, String> {
+    if !args.is_empty() {
+        return Err("--licenses takes no arguments; see endmark --help".into());
+    }
+    let text = format!("{LICENSE}\n{THIRD_PARTY_NOTICES}");
+    io::stdout()
+        .write_all(text.as_bytes())
         .map_err(|e| format!("standard output: {e}"))?;
     Ok(ExitCode::SUCCESS)
 }

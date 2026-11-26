@@ -1,0 +1,46 @@
+name: Bug report
+description: The endmark command, the linter, endmark view or the renderer does something wrong.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A bug report is most useful as a file and a command. For a security problem, do not open an issue: see [SECURITY.md](https://github.com/adamgilman/endmark/blob/main/SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: What `endmark --version` prints, and your operating system.
+      placeholder: endmark 0.1.0, macOS 26
+    validations:
+      required: true
+  - type: textarea
+    id: file
+    attributes:
+      label: File
+      description: The smallest Markdown file that shows the problem.
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command
+      description: The `endmark` command you ran, or what you did on the page.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened
+      description: What it printed or did. Paste the output as it was.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: If the RFC says what should happen, name the section.
+    validations:
+      required: true

@@ -369,7 +369,26 @@ fn help_is_listed_and_prints_what_the_option_prints() {
     let word = endmark(&["help"], "");
     assert_eq!(word.status.code(), Some(0));
     assert_eq!(text(&word.stdout), text(&help.stdout));
-    assert!(text(&help.stdout).contains("\n  endmark help | --help | --version\n"));
+    assert!(text(&help.stdout).contains("\n  endmark help | --help | --version | --licenses\n"));
+}
+
+#[test]
+fn licenses_prints_endmarks_license_and_the_third_party_notices() {
+    let out = endmark(&["--licenses"], "");
+    assert_eq!(out.status.code(), Some(0));
+    let printed = text(&out.stdout);
+    assert!(
+        printed.starts_with("MIT License\n"),
+        "Endmark's own license comes first"
+    );
+    assert!(printed.contains("\nThird-party software in endmark\n"));
+    // One from each side: a crate linked into the binary, and a package
+    // bundled into the review page.
+    assert!(printed.contains("\npulldown-cmark "));
+    assert!(printed.contains("\nmermaid "));
+    let extra = endmark(&["--licenses", "now"], "");
+    assert_eq!(extra.status.code(), Some(2));
+    assert!(text(&extra.stderr).contains("--licenses takes no arguments"));
 }
 
 #[test]
