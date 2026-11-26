@@ -52,6 +52,68 @@ jobs:
       - run: rustup toolchain install stable --profile minimal --target ${{ matrix.target }} && rustup default stable
       - run: cargo test --locked
       - run: cargo build --release --locked --target ${{ matrix.target }}
+      # Signs the macOS binary with the Developer ID certificate and has Apple
+      # notarize it, so that Gatekeeper opens a downloaded copy without a
+      # warning. A bare binary cannot be stapled: Gatekeeper looks the
+      # notarization up online the first time it runs.
+      - name: Sign and notarize
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          BINARY: target/${{ matrix.target }}/release/endmark
+          CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          for name in CERTIFICATE_P12 CERTIFICATE_PASSWORD API_KEY_P8 API_KEY_ID API_ISSUER_ID; do
+            if [ -z "${!name}" ]; then
+              echo "the repository has no APPLE_$name secret" >&2
+              exit 1
+            fi
+          done
+
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          keychain_password=$(openssl rand -hex 24)
+          printf '%s' "$CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$keychain" -f pkcs12 \
+            -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          identity=$(security find-identity -v -p codesigning "$keychain" \
+            | grep -m1 -o '"Developer ID Application: [^"]*"' | tr -d '"' || true)
+          if [ -z "$identity" ]; then
+            echo "APPLE_CERTIFICATE_P12 holds no Developer ID Application identity" >&2
+            exit 1
+          fi
+
+          codesign --force --timestamp --options runtime \
+            --identifier io.github.adamgilman.endmark --sign "$identity" "$BINARY"
+          codesign --verify --strict --verbose=2 "$BINARY"
+
+          printf '%s' "$API_KEY_P8" > "$RUNNER_TEMP/api-key.p8"
+          ditto -c -k --keepParent "$BINARY" "$RUNNER_TEMP/endmark.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/endmark.zip" \
+            --key "$RUNNER_TEMP/api-key.p8" --key-id "$API_KEY_ID" --issuer "$API_ISSUER_ID" \
+            --wait --timeout 30m --output-format json > "$RUNNER_TEMP/notary.json"
+          status=$(jq -r .status "$RUNNER_TEMP/notary.json")
+          echo "notarization: $status"
+          if [ "$status" != "Accepted" ]; then
+            xcrun notarytool log "$(jq -r .id "$RUNNER_TEMP/notary.json")" \
+              --key "$RUNNER_TEMP/api-key.p8" --key-id "$API_KEY_ID" --issuer "$API_ISSUER_ID"
+            exit 1
+          fi
+      - name: Remove the signing keychain
+        if: always() && runner.os == 'macOS'
+        shell: bash
+        run: |
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/certificate.p12" "$RUNNER_TEMP/api-key.p8"
       - name: Package
         shell: bash
         run: |

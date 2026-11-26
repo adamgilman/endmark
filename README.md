@@ -8,11 +8,7 @@ Endmark adds comments, grouped suggestions and a decision history to a Markdown 
 
 Download the archive for your platform from the [latest release](https://github.com/adamgilman/endmark/releases/latest), unpack it, and put `endmark` somewhere on your `PATH`. There are builds for Linux (x86-64), macOS (Apple silicon and Intel) and Windows (x86-64). `SHA256SUMS` in the release lists their checksums.
 
-The macOS binaries are not signed, so macOS refuses to open a downloaded one at first. Clear the quarantine flag once:
-
-```sh
-xattr -d com.apple.quarantine ./endmark
-```
+The macOS binaries are signed with a Developer ID and notarized by Apple, so macOS opens them without a warning.
 
 Or install from [crates.io](https://crates.io/crates/endmark) with a Rust toolchain, 1.80 or later:
 

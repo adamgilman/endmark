@@ -2,7 +2,7 @@
 
 Notable changes to the format and to the reference implementation. Versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change the format.
 
-## 0.1.0 (2026-11-25)
+## 0.1.0 (2026-11-26)
 
 The first release. The format is defined in [RFC 0001](rfcs/0001-endmark.md). The `<!--endmark` token is frozen from this version on. Before 1.0, a minor version may change the rest of the format.
 
@@ -29,6 +29,11 @@ The first release. The format is defined in [RFC 0001](rfcs/0001-endmark.md). Th
   - `status` leaves the place of a retracted comment empty in its text output. JSON is unchanged.
   - A `no-change` refusal reached through a reply names the reply and its thread. `anchor` on a comment that was attached says `moved attached comment`.
   - `endmark help` is listed in the usage, and the usage no longer says `reply` needs `--note`.
+
+**Releases**
+
+- Prebuilt binaries for Linux, macOS and Windows, with checksums. The macOS binaries are signed with a Developer ID and notarized.
+- `endmark` and `endmark-core` are published on crates.io.
 
 **The `endmark-core` crate**
 
