@@ -2,6 +2,8 @@
 
 Endmark adds comments, grouped suggestions and a decision history to a Markdown file without changing how the file renders. The Markdown body stays untouched, and all review state lives in an append-only log of HTML-comment records at the end of the file.
 
+The project page is [adamgilman.com/endmark](https://www.adamgilman.com/endmark).
+
 **Status: 0.1.0, the first release.** The format is defined in [RFC 0001](rfcs/0001-endmark.md). The `<!--endmark` token is frozen. Before 1.0, a minor version may change the rest of the format, and [CHANGELOG.md](CHANGELOG.md) will say how.
 
 ## Install
