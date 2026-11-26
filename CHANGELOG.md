@@ -2,7 +2,7 @@
 
 Notable changes to the format and to the reference implementation. Versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change the format.
 
-## 0.1.0 (2026-11-25)
+## 0.1.0 (2026-11-26)
 
 The first release. The format is defined in [RFC 0001](rfcs/0001-endmark.md). The `<!--endmark` token is frozen from this version on. Before 1.0, a minor version may change the rest of the format.
 
