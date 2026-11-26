@@ -2,6 +2,13 @@
 
 Notable changes to the format and to the reference implementation. Versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change the format.
 
+## 0.1.1 (2026-11-26)
+
+The format is unchanged.
+
+- `endmark --licenses` prints Endmark's license and the licenses of the crates and JavaScript packages built into the binary, from `THIRD_PARTY_NOTICES.txt`. The release archives carry the same file, and each published crate now carries `LICENSE`.
+- A code of conduct, issue and pull request templates, and Dependabot.
+
 ## 0.1.0 (2026-11-26)
 
 The first release. The format is defined in [RFC 0001](rfcs/0001-endmark.md). The `<!--endmark` token is frozen from this version on. Before 1.0, a minor version may change the rest of the format.

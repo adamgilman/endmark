@@ -1,6 +1,6 @@
 # Endmark: the format
 
-This is the normative part of [RFC 0001](../rfcs/0001-endmark.md): its sections 3 to 11 and its worked example, under the same section numbers. It describes the format as of version 0.1.0. The `<!--endmark` token is frozen. Before 1.0, a minor version may change the rest of the format.
+This is the normative part of [RFC 0001](../rfcs/0001-endmark.md): its sections 3 to 11 and its worked example, under the same section numbers. It describes the format as of version 0.1.1. The `<!--endmark` token is frozen. Before 1.0, a minor version may change the rest of the format.
 
 This file is generated from the RFC. To change it, change the RFC and run `UPDATE_SPEC=1 cargo test --test spec`.
 
