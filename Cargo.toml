@@ -7,6 +7,7 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/adamgilman/endmark"
+homepage = "https://www.adamgilman.com/endmark"
 rust-version = "1.80"
 keywords = ["markdown", "review", "comments", "linter", "agents"]
 
